@@ -1,0 +1,55 @@
+# LogSense default configuration — single source of truth for labels, models, and paths.
+
+seed: 42
+
+labels:
+  - auth_failure
+  - config_change
+  - link_event
+  - threat
+  - vpn
+  - wireless
+  - noise
+
+entity_types:
+  - IP
+  - USER
+  - INTERFACE
+  - MAC
+  - RULE
+  - VLAN
+
+data:
+  num_samples: 3000
+  vendors: [cisco_ios, cisco_ise, cisco_wlc, panos]
+  split:
+    train: 0.8
+    val: 0.1
+    test: 0.1
+  raw_dir: data/raw
+  processed_dir: data/processed
+
+models:
+  zero_shot: facebook/bart-large-mnli
+  classifier: distilbert-base-uncased        # alt: microsoft/deberta-v3-small
+  ner: distilbert-base-uncased
+  embeddings: sentence-transformers/all-MiniLM-L6-v2
+
+training:
+  max_length: 128
+  epochs: 3
+  batch_size: 16
+  learning_rate: 2.0e-5
+  weight_decay: 0.01
+  warmup_ratio: 0.1
+  early_stopping_patience: 2
+
+paths:
+  models_dir: models
+  reports_dir: reports
+
+hub:
+  username: natrajexplore
+  classifier_repo: logsense-classifier
+  ner_repo: logsense-ner
+  push: false          # flip to true only when ready

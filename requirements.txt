@@ -1,0 +1,17 @@
+# Convenience mirror of pyproject.toml. Preferred: pip install -e ".[dev]"
+transformers>=4.44
+datasets>=2.20
+evaluate>=0.4
+accelerate>=0.33
+torch
+sentence-transformers>=3.0
+faiss-cpu
+scikit-learn
+seqeval
+gradio>=4.0
+huggingface_hub
+pyyaml
+matplotlib
+pandas
+pytest
+ruff

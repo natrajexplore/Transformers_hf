@@ -1,0 +1,41 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "logsense"
+version = "0.1.0"
+description = "Transformer-based syslog triage for Cisco and Palo Alto logs"
+readme = "README.md"
+requires-python = ">=3.10"
+dependencies = [
+  "transformers>=4.44",
+  "datasets>=2.20",
+  "evaluate>=0.4",
+  "accelerate>=0.33",
+  "torch",
+  "sentence-transformers>=3.0",
+  "faiss-cpu",
+  "scikit-learn",
+  "seqeval",
+  "gradio>=4.0",
+  "huggingface_hub",
+  "pyyaml",
+  "matplotlib",
+  "pandas",
+]
+
+[project.optional-dependencies]
+dev = ["pytest", "ruff", "ipykernel"]
+stretch = ["peft"]
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["src"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py310"
