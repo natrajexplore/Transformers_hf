@@ -24,6 +24,10 @@ Labeling rules that make some examples deliberately "hard"
 * Any GlobalProtect log is ``vpn``, including GlobalProtect authentication failures.
 * An interface up/down on the WLC (its uplinks) is ``link_event``, not ``wireless``.
 * Routine messages from the WLC (NTP sync) are ``noise``, not ``wireless``.
+* Authentication failures are ``auth_failure`` on every vendor, including WLC 802.1X
+  failures (but GlobalProtect failures stay ``vpn``, see above).
+* Security detections are ``threat`` on every vendor: PAN-OS THREAT, IOS IPS / ARP
+  inspection, WLC rogue AP, ISE threat-centric NAC quarantine.
 
 Anonymization: only RFC 5737 / RFC 1918 IPs, and fake names like ``user07`` or ``corp-sw-03``.
 """
@@ -679,6 +683,121 @@ def pan_scheduled_job(rng, dt):
     return tpl, {"job": job, "seq": str(rng.randint(10**6, 10**7))}
 
 
+# --- extra templates so each label spans several vendor formats (breaks the
+#     "vendor format -> label" shortcut the Phase 3 model learned) ---
+
+
+def wlc_dot1x_fail(rng, dt):  # auth_failure on the WLC
+    reason = rng.choice(["Cred Fail", "Timeout", "No Response from Client", "AAA Server Down"])
+    tpl = _wlc_hdr(rng, dt) + (
+        "%DOT1X-5-FAIL: Chassis 1 R0/0: wncd: Authentication failed for client ({mac}) with "
+        "reason ({reason}) on Interface capwap_{cap} AuditSessionID {sess} Username: {user}"
+    )
+    return tpl, {
+        "mac": _e(_mac_cisco(rng), "MAC"),
+        "reason": reason,
+        "cap": f"9000{rng.randint(0, 9999):04d}",
+        "sess": f"{rng.randint(0, 16**24 - 1):024X}",
+        "user": _e(_user(rng), "USER"),
+    }
+
+
+def pan_auth_log(rng, dt):  # auth_failure, PAN-OS AUTH log type
+    user = _user(rng)
+    tpl = _pan_hdr(rng, dt, "AUTH", "0") + (
+        "vsys1,{src},{user},corp\\{user2},{obj},auth-policy-{n},1,0,,Log-Fwd,ldap-corp,"
+        '"{desc}",0,auth-fail,1'
+    )
+    return tpl, {
+        "src": _e(_private_ip(rng), "IP"),
+        "user": _e(user, "USER"),
+        "user2": _e(user, "USER"),
+        "obj": rng.choice(["captive-portal", "mfa-portal", "admin-ui"]),
+        "n": str(rng.randint(1, 5)),
+        "desc": rng.choice(["Invalid credentials", "Account locked", "MFA push denied"]),
+    }
+
+
+def ise_policy_change(rng, dt):  # config_change, a second ISE format
+    obj = rng.choice(["Corp-Wired-Dot1x", "Corp-Wireless-PEAP", "Guest-Redirect"])
+    tpl = _ise_hdr(rng, dt, "CISE_Administrative_and_Operational_Audit", 51001, "INFO") + (
+        "Policy-Changes: Policy rule modified, AdminInterface=CLI, AdminIPAddress={src}, "
+        "AdminName={user}, ObjectName={obj}, ObjectType=Authorization Rule, Status=Success"
+    )
+    return tpl, {"src": _e(_private_ip(rng), "IP"), "user": _e(_user(rng), "USER"), "obj": obj}
+
+
+def pan_ha_link(rng, dt):  # link_event, a second PAN-OS format
+    link, state = rng.choice(["HA1", "HA2", "HA1-backup"]), rng.choice(["up", "down"])
+    tpl = _pan_hdr(rng, dt, "SYSTEM", "ha") + (
+        ',ha-link-change,{iface},0,0,ha,{sev},"{link} link {state} on {iface2}",{seq},0x0,0,0,0,0,,'
+    )
+    iface = _pan_iface(rng)
+    return tpl, {
+        "iface": _e(iface, "INTERFACE"),
+        "iface2": _e(iface, "INTERFACE"),
+        "sev": "critical" if state == "down" else "informational",
+        "link": link,
+        "state": state,
+        "seq": str(rng.randint(10**6, 10**7)),
+    }
+
+
+def ios_dai_deny(rng, dt):  # threat on IOS: ARP spoofing caught by Dynamic ARP Inspection
+    tpl = _ios_hdr(rng, dt) + (
+        "%SW_DAI-4-DHCP_SNOOPING_DENY: 1 Invalid ARPs (Req) on {iface}, vlan {vlan}."
+        "([{mac}/{ip}/0000.0000.0000/{ip2}/{t}])"
+    )
+    return tpl, {
+        "iface": _e(_ios_iface(rng), "INTERFACE"),
+        "vlan": _e(_vlan(rng), "VLAN"),
+        "mac": _e(_mac_cisco(rng), "MAC"),
+        "ip": _e(_private_ip(rng), "IP"),
+        "ip2": _e(_private_ip(rng), "IP"),
+        "t": _login_time(dt),
+    }
+
+
+def wlc_rogue_ap(rng, dt):  # threat on the WLC
+    tpl = _wlc_hdr(rng, dt) + (
+        "%ROGUE-4-AP_DETECTED: Chassis 1 R0/0: wncd: Malicious rogue AP {mac} detected on "
+        "channel {ch} by AP corp-ap-{nn}, impersonating SSID ({ssid}), RSSI {rssi} dBm"
+    )
+    return tpl, {
+        "mac": _e(_mac_cisco(rng), "MAC"),
+        "ch": str(rng.choice([1, 6, 11, 36, 149])),
+        "nn": f"{rng.randint(1, 60):02d}",
+        "ssid": rng.choice(SSIDS),
+        "rssi": str(-rng.randint(40, 85)),
+    }
+
+
+def ise_anc_quarantine(rng, dt):  # threat on ISE: threat-centric NAC quarantine
+    tpl = _ise_hdr(rng, dt, "CISE_Threat_Centric_NAC", 91002, "WARN") + (
+        "TC-NAC: Endpoint quarantined, EndpointMacAddress={mac}, IPAddress={ip}, "
+        "UserName={user}, ThreatSeverity=High, AdapterName=AMP, Indicator={ind}"
+    )
+    return tpl, {
+        "mac": _e(_mac_dash(rng), "MAC"),
+        "ip": _e(_private_ip(rng), "IP"),
+        "user": _e(_user(rng), "USER"),
+        "ind": rng.choice(["Ransomware.Generic", "Trojan.Emotet", "Backdoor.CobaltStrike"]),
+    }
+
+
+def ise_profiler(rng, dt):  # noise on ISE: routine endpoint profiling
+    tpl = _ise_hdr(rng, dt, "CISE_Profiler", 80002, "INFO") + (
+        "Profiler: Profiler EndPoint profiling event occurred, EndpointMacAddress={mac}, "
+        "EndpointPolicy={pol}, EndpointIPAddress={ip}, NADAddress={nas}"
+    )
+    return tpl, {
+        "mac": _e(_mac_dash(rng), "MAC"),
+        "pol": rng.choice(["Apple-iPhone", "Windows10-Workstation", "Cisco-IP-Phone", "Printer"]),
+        "ip": _e(_private_ip(rng), "IP"),
+        "nas": _e(_private_ip(rng), "IP"),
+    }
+
+
 # (vendor, template) pairs per label. Vendors are filtered by config `data.vendors`.
 TEMPLATES: dict[str, list[tuple[str, Template]]] = {
     "auth_failure": [
@@ -687,12 +806,15 @@ TEMPLATES: dict[str, list[tuple[str, Template]]] = {
         ("cisco_ise", ise_5400),
         ("cisco_ise", ise_5405),
         ("panos", pan_auth_fail),
+        ("panos", pan_auth_log),
+        ("cisco_wlc", wlc_dot1x_fail),
     ],
     "config_change": [
         ("cisco_ios", ios_config_i),
         ("cisco_ios", ios_parser_cmd),
         ("cisco_wlc", partial(ios_config_i, kind="wlc")),
         ("cisco_ise", ise_config),
+        ("cisco_ise", ise_policy_change),
         ("panos", pan_config),
     ],
     "link_event": [
@@ -701,11 +823,14 @@ TEMPLATES: dict[str, list[tuple[str, Template]]] = {
         ("cisco_ios", ios_admin_down),
         ("cisco_wlc", partial(ios_link_updown, kind="wlc")),
         ("panos", pan_link_change),
+        ("panos", pan_ha_link),
     ],
     "threat": [
         ("panos", pan_threat),
-        ("panos", pan_threat),
         ("cisco_ios", ios_ips_signature),
+        ("cisco_ios", ios_dai_deny),
+        ("cisco_wlc", wlc_rogue_ap),
+        ("cisco_ise", ise_anc_quarantine),
     ],
     "vpn": [
         ("panos", pan_globalprotect),
@@ -725,6 +850,7 @@ TEMPLATES: dict[str, list[tuple[str, Template]]] = {
         ("cisco_ios", cdp_native_vlan),
         ("cisco_ios", ios_login_success),
         ("cisco_ise", ise_5200),
+        ("cisco_ise", ise_profiler),
         ("panos", pan_traffic),
         ("panos", pan_traffic),
         ("cisco_ios", ios_logging_host),
@@ -823,22 +949,30 @@ def build_features(cfg: dict[str, Any]) -> Features:
 
 
 def build_dataset_dict(rows: list[dict[str, Any]], cfg: dict[str, Any]) -> DatasetDict:
-    """Turn rows into stratified train / validation / test splits, plus ``test_unseen``.
+    """Turn rows into stratified train / validation / test splits, plus two "unseen" splits.
 
-    ``test_unseen`` holds every row from the templates in ``data.heldout_templates``; those
-    templates never appear in the other splits. Scoring on it asks "did the model learn what
-    an auth failure *means*, or just memorize our templates?"
+    ``test_unseen`` holds every row from the templates in ``data.heldout_templates`` and
+    ``validation_unseen`` every row from ``data.val_heldout_templates``. Those templates never
+    appear in train. Scoring on them asks "did the model learn what an auth failure *means*,
+    or just memorize our templates?" — and ``validation_unseen`` lets training pick its best
+    checkpoint by that question instead of by memorization.
     """
     label2id, _ = label_maps(cfg)
     records = [{**r, "label": label2id[r["label"]]} for r in rows]
     ds = Dataset.from_list(records, features=build_features(cfg))
 
-    heldout = set(cfg["data"].get("heldout_templates", []))
     known = {template_name(fn) for pool in TEMPLATES.values() for _, fn in pool}
-    if unknown := heldout - known:
-        raise ValueError(f"Unknown heldout_templates: {sorted(unknown)}")
-    unseen = ds.filter(lambda ex: ex["template"] in heldout)
-    ds = ds.filter(lambda ex: ex["template"] not in heldout)
+    unseen_splits: dict[str, Dataset] = {}
+    for split_name, key in (
+        ("test_unseen", "heldout_templates"),
+        ("validation_unseen", "val_heldout_templates"),
+    ):
+        names = set(cfg["data"].get(key) or [])
+        if unknown := names - known:
+            raise ValueError(f"Unknown {key}: {sorted(unknown)}")
+        if names:
+            unseen_splits[split_name] = ds.filter(lambda ex, n=names: ex["template"] in n)
+            ds = ds.filter(lambda ex, n=names: ex["template"] not in n)
 
     split = cfg["data"]["split"]
     holdout = split["val"] + split["test"]
@@ -849,8 +983,7 @@ def build_dataset_dict(rows: list[dict[str, Any]], cfg: dict[str, Any]) -> Datas
         test_size=split["test"] / holdout, stratify_by_column="label", seed=cfg["seed"]
     )
     dsd = DatasetDict(train=first["train"], validation=second["train"], test=second["test"])
-    if heldout:
-        dsd["test_unseen"] = unseen
+    dsd.update(unseen_splits)
     return dsd
 
 

@@ -35,6 +35,15 @@ data:
     - ios_crypto_inv_spi     # vpn
     - wlc_apmgr              # wireless
     - cdp_native_vlan        # noise
+  # A second template per label -> `validation_unseen`, used to pick the best checkpoint.
+  val_heldout_templates:
+    - ise_5405               # auth_failure
+    - ios_parser_cmd         # config_change
+    - ios_admin_down         # link_event
+    - wlc_rogue_ap           # threat
+    - pan_ike                # vpn
+    - wlc_ap_join            # wireless
+    - ios_logging_host       # noise
   raw_dir: data/raw
   processed_dir: data/processed
 

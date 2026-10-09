@@ -79,7 +79,9 @@ def compute_metrics(eval_pred: Any) -> dict[str, float]:
     }
 
 
-def build_training_args(cfg: dict[str, Any], output_dir: Path) -> TrainingArguments:
+def build_training_args(
+    cfg: dict[str, Any], output_dir: Path, best_metric: str = "macro_f1"
+) -> TrainingArguments:
     t = cfg["training"]
     return TrainingArguments(
         output_dir=str(output_dir),  # where checkpoints are written during training
@@ -95,7 +97,9 @@ def build_training_args(cfg: dict[str, Any], output_dir: Path) -> TrainingArgume
         eval_strategy="epoch",  # evaluate on the validation split after every epoch...
         save_strategy="epoch",  # ...and checkpoint at the same points (must match for best-model)
         load_best_model_at_end=True,  # restore the checkpoint with the best validation metric
-        metric_for_best_model="macro_f1",  # "best" = highest validation macro-F1 (key from compute_metrics)
+        # "best" = highest value of this compute_metrics key. With several eval sets, keys are
+        # prefixed by set name, e.g. "validation_unseen_macro_f1". Early stopping watches it too.
+        metric_for_best_model=best_metric,
         greater_is_better=True,
         save_total_limit=2,  # keep disk use bounded (best + latest)
         logging_strategy="steps",
@@ -147,12 +151,19 @@ def train(cfg: dict[str, Any]) -> dict[str, Any]:
         base, num_labels=len(labels), id2label=id2label, label2id=label2id
     )
 
+    # Select checkpoints on templates the model never trained on, when that split exists;
+    # in-distribution validation scores 1.0 from epoch 1 and can't tell checkpoints apart.
+    eval_sets = {s: tokenized[s] for s in ("validation", "validation_unseen") if s in tokenized}
+    best_metric = (
+        "validation_unseen_macro_f1" if "validation_unseen" in eval_sets else "validation_macro_f1"
+    )
+
     out_dir = model_dir(cfg)
     trainer = Trainer(
         model=model,
-        args=build_training_args(cfg, out_dir.parent / "classifier_checkpoints"),
+        args=build_training_args(cfg, out_dir.parent / "classifier_checkpoints", best_metric),
         train_dataset=tokenized["train"],
-        eval_dataset=tokenized["validation"],
+        eval_dataset=eval_sets,  # a dict -> Trainer evaluates each and prefixes metric names
         processing_class=tokenizer,  # saved alongside the model so predict() can reload it
         data_collator=DataCollatorWithPadding(tokenizer),
         compute_metrics=compute_metrics,
@@ -171,7 +182,8 @@ def train(cfg: dict[str, Any]) -> dict[str, Any]:
         "train_rows": len(tokenized["train"]),
         "epochs_run": round(trainer.state.epoch or 0, 2),
         "best_checkpoint": trainer.state.best_model_checkpoint,
-        "best_val_macro_f1": trainer.state.best_metric,
+        "best_metric": best_metric,
+        "best_metric_value": trainer.state.best_metric,
         "train_seconds": train_seconds,
         "train_loss": round(train_out.training_loss, 4),
     }

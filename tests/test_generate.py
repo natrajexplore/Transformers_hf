@@ -79,7 +79,7 @@ def test_hard_examples_present(rows):
 
 def test_splits_disjoint_and_stratified(cfg, rows):
     dsd = build_dataset_dict(rows, cfg)
-    assert set(dsd) == {"train", "validation", "test", "test_unseen"}
+    assert set(dsd) == {"train", "validation", "test", "test_unseen", "validation_unseen"}
     assert sum(len(s) for s in dsd.values()) == len(rows)
     texts = [set(s["text"]) for s in dsd.values()]
     for i in range(len(texts)):
@@ -97,12 +97,29 @@ def test_splits_disjoint_and_stratified(cfg, rows):
             assert abs(v / len(split) - train_frac[k]) < 0.03
 
 
-def test_heldout_templates_only_in_test_unseen(cfg, rows):
+@pytest.mark.parametrize(
+    ("split", "key"),
+    [("test_unseen", "heldout_templates"), ("validation_unseen", "val_heldout_templates")],
+)
+def test_heldout_templates_only_in_their_split(cfg, rows, split, key):
     dsd = build_dataset_dict(rows, cfg)
-    heldout = set(cfg["data"]["heldout_templates"])
-    assert set(dsd["test_unseen"]["template"]) == heldout
-    for name in ("train", "validation", "test"):
+    heldout = set(cfg["data"][key])
+    assert set(dsd[split]["template"]) == heldout
+    for name in [n for n in dsd if n != split]:
         assert not set(dsd[name]["template"]) & heldout
+
+
+def test_no_vendor_shortcut_for_unseen_templates(cfg, rows):
+    """Each held-out (label, vendor) pair still has a sibling template in train, so the
+    unseen splits test wording, not "this vendor format never carried this label"."""
+    dsd = build_dataset_dict(rows, cfg)
+    names = dsd["train"].features["label"].names
+    train_pairs = {(names[ex["label"]], ex["vendor"]) for ex in dsd["train"]}
+    for label in [n for n in names if n != "wireless"]:  # wireless is WLC-only by nature
+        assert len({v for lbl, v in train_pairs if lbl == label}) >= 2, label
+    for ex in dsd["test_unseen"]:
+        if names[ex["label"]] != "wireless":  # wireless is WLC-only by nature
+            assert (names[ex["label"]], ex["vendor"]) in train_pairs, ex["template"]
 
 
 def test_unknown_heldout_template_rejected(cfg, rows):
