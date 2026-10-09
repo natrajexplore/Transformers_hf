@@ -1,0 +1,186 @@
+{
+  "split": "test",
+  "tfidf_logreg": {
+    "seconds": 1.8,
+    "n": 300,
+    "accuracy": 1.0,
+    "macro_f1": 1.0,
+    "per_class_f1": {
+      "auth_failure": 1.0,
+      "config_change": 1.0,
+      "link_event": 1.0,
+      "threat": 1.0,
+      "vpn": 1.0,
+      "wireless": 1.0,
+      "noise": 1.0
+    },
+    "confusion_matrix": {
+      "labels": [
+        "auth_failure",
+        "config_change",
+        "link_event",
+        "threat",
+        "vpn",
+        "wireless",
+        "noise"
+      ],
+      "matrix": [
+        [
+          43,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0
+        ],
+        [
+          0,
+          43,
+          0,
+          0,
+          0,
+          0,
+          0
+        ],
+        [
+          0,
+          0,
+          43,
+          0,
+          0,
+          0,
+          0
+        ],
+        [
+          0,
+          0,
+          0,
+          43,
+          0,
+          0,
+          0
+        ],
+        [
+          0,
+          0,
+          0,
+          0,
+          42,
+          0,
+          0
+        ],
+        [
+          0,
+          0,
+          0,
+          0,
+          0,
+          43,
+          0
+        ],
+        [
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          43
+        ]
+      ]
+    }
+  },
+  "zero_shot": {
+    "model": "facebook/bart-large-mnli",
+    "seconds": 2336.5,
+    "n": 300,
+    "accuracy": 0.5366666666666666,
+    "macro_f1": 0.47677023644040134,
+    "per_class_f1": {
+      "auth_failure": 0.8269230769230769,
+      "config_change": 0.75,
+      "link_event": 0.4648648648648649,
+      "threat": 0.696969696969697,
+      "vpn": 0.3793103448275862,
+      "wireless": 0.08888888888888889,
+      "noise": 0.13043478260869565
+    },
+    "confusion_matrix": {
+      "labels": [
+        "auth_failure",
+        "config_change",
+        "link_event",
+        "threat",
+        "vpn",
+        "wireless",
+        "noise"
+      ],
+      "matrix": [
+        [
+          43,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0
+        ],
+        [
+          0,
+          36,
+          2,
+          0,
+          5,
+          0,
+          0
+        ],
+        [
+          0,
+          0,
+          43,
+          0,
+          0,
+          0,
+          0
+        ],
+        [
+          2,
+          0,
+          18,
+          23,
+          0,
+          0,
+          0
+        ],
+        [
+          5,
+          0,
+          26,
+          0,
+          11,
+          0,
+          0
+        ],
+        [
+          11,
+          6,
+          24,
+          0,
+          0,
+          2,
+          0
+        ],
+        [
+          0,
+          11,
+          29,
+          0,
+          0,
+          0,
+          3
+        ]
+      ]
+    }
+  }
+}

@@ -35,6 +35,24 @@ models:
   ner: distilbert-base-uncased
   embeddings: sentence-transformers/all-MiniLM-L6-v2
 
+baseline:
+  # Zero-shot NLI reads label names as English, so give each label a descriptive phrase.
+  hypothesis_template: "This network log message is about {}."
+  zero_shot_labels:
+    auth_failure: a failed login or authentication failure
+    config_change: a device configuration change
+    link_event: a network interface or link going up or down
+    threat: a security threat, attack, or malware detection
+    vpn: a VPN tunnel or remote access connection
+    wireless: Wi-Fi clients or wireless access points
+    noise: a routine informational event
+  tfidf:
+    analyzer: char_wb      # character n-grams inside word boundaries — robust to odd log tokens
+    ngram_min: 3
+    ngram_max: 5
+    max_features: 50000
+  logreg_C: 10.0
+
 training:
   max_length: 128
   epochs: 3
