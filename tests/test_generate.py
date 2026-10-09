@@ -79,13 +79,33 @@ def test_hard_examples_present(rows):
 
 def test_splits_disjoint_and_stratified(cfg, rows):
     dsd = build_dataset_dict(rows, cfg)
-    assert set(dsd) == {"train", "validation", "test"}
+    assert set(dsd) == {"train", "validation", "test", "test_unseen"}
     assert sum(len(s) for s in dsd.values()) == len(rows)
     texts = [set(s["text"]) for s in dsd.values()]
-    assert not (texts[0] & texts[1] or texts[0] & texts[2] or texts[1] & texts[2])
+    for i in range(len(texts)):
+        for j in range(i + 1, len(texts)):
+            assert not texts[i] & texts[j]
     names = dsd["train"].features["label"].names
     assert names == cfg["labels"]
+    train_frac = {k: v / len(dsd["train"]) for k, v in Counter(dsd["train"]["label"]).items()}
     for split in dsd.values():
         counts = Counter(split["label"])
         assert set(counts) == set(range(len(names)))  # every class in every split
-        assert max(counts.values()) - min(counts.values()) <= 2
+    for name in ("validation", "test"):  # stratified: same class mix as train
+        split = dsd[name]
+        for k, v in Counter(split["label"]).items():
+            assert abs(v / len(split) - train_frac[k]) < 0.03
+
+
+def test_heldout_templates_only_in_test_unseen(cfg, rows):
+    dsd = build_dataset_dict(rows, cfg)
+    heldout = set(cfg["data"]["heldout_templates"])
+    assert set(dsd["test_unseen"]["template"]) == heldout
+    for name in ("train", "validation", "test"):
+        assert not set(dsd[name]["template"]) & heldout
+
+
+def test_unknown_heldout_template_rejected(cfg, rows):
+    bad = {**cfg, "data": {**cfg["data"], "heldout_templates": ["no_such_template"]}}
+    with pytest.raises(ValueError, match="no_such_template"):
+        build_dataset_dict(rows, bad)

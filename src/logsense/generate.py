@@ -760,6 +760,13 @@ def render(template: str, fields: dict[str, Field]) -> tuple[str, list[dict[str,
     return "".join(parts), entities
 
 
+def template_name(fn: Template) -> str:
+    """Stable template id, e.g. ``ios_config_i`` or ``ios_config_i[wlc]`` for a partial."""
+    if isinstance(fn, partial):
+        return f"{fn.func.__name__}[{','.join(map(str, fn.keywords.values()))}]"
+    return fn.__name__
+
+
 def generate_rows(cfg: dict[str, Any]) -> list[dict[str, Any]]:
     """Generate ``data.num_samples`` unique labeled rows, balanced across labels (±1)."""
     rng = random.Random(cfg["seed"])
@@ -787,7 +794,15 @@ def generate_rows(cfg: dict[str, Any]) -> list[dict[str, Any]]:
             if text in seen:  # avoid exact duplicates leaking across splits
                 continue
             seen.add(text)
-            rows.append({"text": text, "label": label, "vendor": vendor, "entities": entities})
+            rows.append(
+                {
+                    "text": text,
+                    "label": label,
+                    "vendor": vendor,
+                    "template": template_name(template_fn),
+                    "entities": entities,
+                }
+            )
             count += 1
     rng.shuffle(rows)
     return rows
@@ -800,6 +815,7 @@ def build_features(cfg: dict[str, Any]) -> Features:
             "text": Value("string"),
             "label": ClassLabel(names=cfg["labels"]),
             "vendor": Value("string"),
+            "template": Value("string"),
             # A Python list in Features means "variable-length list of this struct".
             "entities": [{"start": Value("int32"), "end": Value("int32"), "type": Value("string")}],
         }
@@ -807,10 +823,22 @@ def build_features(cfg: dict[str, Any]) -> Features:
 
 
 def build_dataset_dict(rows: list[dict[str, Any]], cfg: dict[str, Any]) -> DatasetDict:
-    """Turn rows into a stratified train / validation / test DatasetDict."""
+    """Turn rows into stratified train / validation / test splits, plus ``test_unseen``.
+
+    ``test_unseen`` holds every row from the templates in ``data.heldout_templates``; those
+    templates never appear in the other splits. Scoring on it asks "did the model learn what
+    an auth failure *means*, or just memorize our templates?"
+    """
     label2id, _ = label_maps(cfg)
     records = [{**r, "label": label2id[r["label"]]} for r in rows]
     ds = Dataset.from_list(records, features=build_features(cfg))
+
+    heldout = set(cfg["data"].get("heldout_templates", []))
+    known = {template_name(fn) for pool in TEMPLATES.values() for _, fn in pool}
+    if unknown := heldout - known:
+        raise ValueError(f"Unknown heldout_templates: {sorted(unknown)}")
+    unseen = ds.filter(lambda ex: ex["template"] in heldout)
+    ds = ds.filter(lambda ex: ex["template"] not in heldout)
 
     split = cfg["data"]["split"]
     holdout = split["val"] + split["test"]
@@ -820,7 +848,10 @@ def build_dataset_dict(rows: list[dict[str, Any]], cfg: dict[str, Any]) -> Datas
     second = first["test"].train_test_split(
         test_size=split["test"] / holdout, stratify_by_column="label", seed=cfg["seed"]
     )
-    return DatasetDict(train=first["train"], validation=second["train"], test=second["test"])
+    dsd = DatasetDict(train=first["train"], validation=second["train"], test=second["test"])
+    if heldout:
+        dsd["test_unseen"] = unseen
+    return dsd
 
 
 def save(rows: list[dict[str, Any]], dsd: DatasetDict, cfg: dict[str, Any]) -> None:

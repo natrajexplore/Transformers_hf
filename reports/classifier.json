@@ -1,0 +1,190 @@
+{
+  "base_model": "distilbert-base-uncased",
+  "max_length": 128,
+  "train_rows": 1882,
+  "epochs_run": 3.0,
+  "best_checkpoint": "models\\classifier_checkpoints\\checkpoint-118",
+  "best_val_macro_f1": 1.0,
+  "train_seconds": 1867.5,
+  "train_loss": 0.3695,
+  "test": {
+    "n": 236,
+    "accuracy": 1.0,
+    "macro_f1": 1.0,
+    "per_class_f1": {
+      "auth_failure": 1.0,
+      "config_change": 1.0,
+      "link_event": 1.0,
+      "threat": 1.0,
+      "vpn": 1.0,
+      "wireless": 1.0,
+      "noise": 1.0
+    },
+    "confusion_matrix": {
+      "labels": [
+        "auth_failure",
+        "config_change",
+        "link_event",
+        "threat",
+        "vpn",
+        "wireless",
+        "noise"
+      ],
+      "matrix": [
+        [
+          34,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0
+        ],
+        [
+          0,
+          35,
+          0,
+          0,
+          0,
+          0,
+          0
+        ],
+        [
+          0,
+          0,
+          36,
+          0,
+          0,
+          0,
+          0
+        ],
+        [
+          0,
+          0,
+          0,
+          28,
+          0,
+          0,
+          0
+        ],
+        [
+          0,
+          0,
+          0,
+          0,
+          32,
+          0,
+          0
+        ],
+        [
+          0,
+          0,
+          0,
+          0,
+          0,
+          33,
+          0
+        ],
+        [
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          38
+        ]
+      ]
+    }
+  },
+  "test_unseen": {
+    "n": 647,
+    "accuracy": 0.2874806800618238,
+    "macro_f1": 0.20172648796001816,
+    "per_class_f1": {
+      "auth_failure": 0.6056338028169014,
+      "config_change": 0.0,
+      "link_event": 0.0,
+      "threat": 0.0,
+      "vpn": 0.0,
+      "wireless": 0.8064516129032258,
+      "noise": 0.0
+    },
+    "confusion_matrix": {
+      "labels": [
+        "auth_failure",
+        "config_change",
+        "link_event",
+        "threat",
+        "vpn",
+        "wireless",
+        "noise"
+      ],
+      "matrix": [
+        [
+          86,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0
+        ],
+        [
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          79
+        ],
+        [
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          73
+        ],
+        [
+          0,
+          10,
+          0,
+          0,
+          41,
+          0,
+          98
+        ],
+        [
+          103,
+          0,
+          0,
+          0,
+          0,
+          6,
+          0
+        ],
+        [
+          0,
+          0,
+          0,
+          0,
+          0,
+          100,
+          0
+        ],
+        [
+          9,
+          0,
+          0,
+          0,
+          0,
+          42,
+          0
+        ]
+      ]
+    }
+  }
+}

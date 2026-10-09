@@ -26,6 +26,15 @@ data:
     train: 0.8
     val: 0.1
     test: 0.1
+  # One template per label is held out entirely -> `test_unseen` split (generalization check).
+  heldout_templates:
+    - pan_auth_fail          # auth_failure
+    - ise_config             # config_change
+    - pan_link_change        # link_event
+    - ios_ips_signature      # threat
+    - ios_crypto_inv_spi     # vpn
+    - wlc_apmgr              # wireless
+    - cdp_native_vlan        # noise
   raw_dir: data/raw
   processed_dir: data/processed
 

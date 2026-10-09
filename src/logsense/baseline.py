@@ -104,39 +104,46 @@ def main(argv: list[str] | None = None) -> None:
     dsd = load_from_disk(cfg["data"]["processed_dir"])
     names = dsd["train"].features["label"].names
 
-    train_texts, train_labels = dsd["train"]["text"], [names[i] for i in dsd["train"]["label"]]
-    test_texts, test_labels = dsd["test"]["text"], [names[i] for i in dsd["test"]["label"]]
+    train_texts = list(dsd["train"]["text"])
+    train_labels = [names[i] for i in dsd["train"]["label"]]
+    eval_splits = [s for s in ("test", "test_unseen") if s in dsd]
 
-    report: dict[str, Any] = {"split": "test"}
+    report: dict[str, Any] = {}
+    for split in eval_splits:
+        texts = list(dsd[split]["text"])
+        gold = [names[i] for i in dsd[split]["label"]]
 
-    t0 = time.perf_counter()
-    tfidf_preds = run_tfidf(train_texts, train_labels, test_texts, cfg)
-    report["tfidf_logreg"] = {
-        "seconds": round(time.perf_counter() - t0, 1),
-        **classification_metrics(test_labels, tfidf_preds, labels),
-    }
+        t0 = time.perf_counter()
+        tfidf_preds = run_tfidf(train_texts, train_labels, texts, cfg)
+        tfidf = {
+            "seconds": round(time.perf_counter() - t0, 1),
+            **classification_metrics(gold, tfidf_preds, labels),
+        }
 
-    n = args.zero_shot_limit or len(test_texts)
-    t0 = time.perf_counter()
-    zs_preds = run_zero_shot(test_texts[:n], cfg)
-    report["zero_shot"] = {
-        "model": cfg["models"]["zero_shot"],
-        "seconds": round(time.perf_counter() - t0, 1),
-        **classification_metrics(test_labels[:n], zs_preds, labels),
-    }
+        # Rows are already shuffled, so the first N are a fair random sample.
+        n = args.zero_shot_limit or len(texts)
+        t0 = time.perf_counter()
+        zs_preds = run_zero_shot(texts[:n], cfg)
+        zero_shot = {
+            "model": cfg["models"]["zero_shot"],
+            "seconds": round(time.perf_counter() - t0, 1),
+            **classification_metrics(gold[:n], zs_preds, labels),
+        }
+        report[split] = {"tfidf_logreg": tfidf, "zero_shot": zero_shot}
 
     out = Path(cfg["paths"]["reports_dir"]) / "baseline.json"
     out.parent.mkdir(parents=True, exist_ok=True)
     out.write_text(json.dumps(report, indent=2), encoding="utf-8")
 
-    print(f"\n{'':<14}{'zero_shot':>10}{'tfidf':>10}")
-    zs, tf = report["zero_shot"], report["tfidf_logreg"]
-    print(f"{'n':<14}{zs['n']:>10}{tf['n']:>10}")
-    for key in ("accuracy", "macro_f1"):
-        print(f"{key:<14}{zs[key]:>10.3f}{tf[key]:>10.3f}")
-    for label in labels:
-        zf, tff = zs["per_class_f1"][label], tf["per_class_f1"][label]
-        print(f"  {label:<12}{zf:>10.3f}{tff:>10.3f}")
+    for split, res in report.items():
+        zs, tf = res["zero_shot"], res["tfidf_logreg"]
+        print(f"\n[{split}]\n{'':<14}{'zero_shot':>10}{'tfidf':>10}")
+        print(f"{'n':<14}{zs['n']:>10}{tf['n']:>10}")
+        for key in ("accuracy", "macro_f1"):
+            print(f"{key:<14}{zs[key]:>10.3f}{tf[key]:>10.3f}")
+        for label in labels:
+            zf, tff = zs["per_class_f1"][label], tf["per_class_f1"][label]
+            print(f"  {label:<12}{zf:>10.3f}{tff:>10.3f}")
     print(f"\nSaved {out}")
 
 
