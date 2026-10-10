@@ -15,7 +15,7 @@ and **similar past events**.
 | 4 | NER entity extraction (BIO, seqeval) | ✅ |
 | 5 | Similar-event search (MiniLM + FAISS) | ✅ |
 | 6 | Gradio demo, model cards, Space folder | ✅ (Hub upload not done — see `space/README.md`) |
-| 7 | Burst summarizer: prompting vs LoRA (stretch) | ✅ |
+| 7 | Burst summarizer: prompting vs LoRA (stretch) | ⚠️ prompting done; LoRA run pending (needs a terminal run, see below) |
 | 8 | MCP tool server; real-log evaluation script | ✅ code — needs your anonymized lab logs |
 
 Full plan: [docs/PHASES.md](docs/PHASES.md)
@@ -34,6 +34,10 @@ templates as training, so every model scores ~1.0 there — that measures memori
 |---|---|
 | NER entity micro-F1 | 0.863 (USER 1.00, INTERFACE 1.00, IP 0.93, VLAN 0.58, MAC 0.43) |
 | Search: top-1 neighbor has same category | MiniLM 0.521 vs TF-IDF 0.490 |
+
+Burst summarizer (Qwen2.5-0.5B-Instruct, prompting only, 20 held-out bursts): correct
+category mentioned 0.65, exact event count 0.00, exact 3-line format 0.00, ROUGE-L 0.117 —
+it writes long free-form markdown instead of the requested note. The LoRA comparison is pending.
 
 Takeaways: a cheap TF-IDF baseline beats the fine-tuned transformer on unseen formats;
 fine-tuning on narrow data teaches format shortcuts. Details in `reports/*.json` and the model
