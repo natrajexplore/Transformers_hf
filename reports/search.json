@@ -1,0 +1,60 @@
+{
+  "embedding_model": "sentence-transformers/all-MiniLM-L6-v2",
+  "index_size": 1540,
+  "test": {
+    "embeddings": {
+      "n": 193,
+      "top1_agreement": 1.0,
+      "per_class": {
+        "auth_failure": 1.0,
+        "config_change": 1.0,
+        "link_event": 1.0,
+        "threat": 1.0,
+        "vpn": 1.0,
+        "wireless": 1.0,
+        "noise": 1.0
+      }
+    },
+    "tfidf": {
+      "n": 193,
+      "top1_agreement": 0.9896,
+      "per_class": {
+        "auth_failure": 1.0,
+        "config_change": 1.0,
+        "link_event": 1.0,
+        "threat": 1.0,
+        "vpn": 1.0,
+        "wireless": 1.0,
+        "noise": 0.9429
+      }
+    }
+  },
+  "test_unseen": {
+    "embeddings": {
+      "n": 529,
+      "top1_agreement": 0.5974,
+      "per_class": {
+        "auth_failure": 1.0,
+        "config_change": 1.0,
+        "link_event": 1.0,
+        "threat": 0.0652,
+        "vpn": 0.1667,
+        "wireless": 1.0,
+        "noise": 0.0
+      }
+    },
+    "tfidf": {
+      "n": 529,
+      "top1_agreement": 0.3856,
+      "per_class": {
+        "auth_failure": 0.1429,
+        "config_change": 1.0,
+        "link_event": 0.0635,
+        "threat": 0.0217,
+        "vpn": 0.6944,
+        "wireless": 0.4444,
+        "noise": 0.0811
+      }
+    }
+  }
+}

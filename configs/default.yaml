@@ -78,6 +78,10 @@ ner:
   epochs: 3
   learning_rate: 5.0e-5     # NER heads commonly train a bit faster than sequence classifiers
 
+search:
+  top_k: 5                  # neighbors returned by find_similar
+  batch_size: 64            # sentences embedded per forward pass (no gradients -> can be large)
+
 training:
   max_length: 128
   epochs: 3
