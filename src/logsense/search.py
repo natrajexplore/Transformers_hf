@@ -29,8 +29,8 @@ from typing import Any
 import faiss
 import numpy as np
 from datasets import load_from_disk
-from sklearn.feature_extraction.text import TfidfVectorizer
 
+from logsense.baseline import make_tfidf_vectorizer
 from logsense.config import load_config
 
 # texts -> float32 array of shape (n, dim), each row L2-normalized
@@ -100,14 +100,27 @@ def find_similar(
     encode: Encoder | None = None,
 ) -> list[dict[str, Any]]:
     """Top-k most similar past logs: [{"text", "category", "vendor", "score"}, ...]."""
+    return find_similar_batch([text], k, cfg, encode)[0]
+
+
+def find_similar_batch(
+    texts: list[str],
+    k: int | None = None,
+    cfg: dict[str, Any] | None = None,
+    encode: Encoder | None = None,
+) -> list[list[dict[str, Any]]]:
+    """``find_similar`` for many texts at once: one embedding pass and one FAISS search."""
     cfg = cfg or load_config()
     encode = encode or load_encoder(cfg)
     index, meta = _load_index(str(index_dir(cfg)))
-    scores, ids = index.search(encode([text]), k or cfg["search"]["top_k"])
+    scores, ids = index.search(encode(list(texts)), k or cfg["search"]["top_k"])
     return [
-        {**meta[i], "score": round(float(s), 4)}
-        for s, i in zip(scores[0], ids[0], strict=True)
-        if i != -1  # FAISS pads with -1 when k > number of stored vectors
+        [
+            {**meta[i], "score": round(float(s), 4)}
+            for s, i in zip(row_scores, row_ids, strict=True)
+            if i != -1  # FAISS pads with -1 when k > number of stored vectors
+        ]
+        for row_scores, row_ids in zip(scores, ids, strict=True)
     ]
 
 
@@ -117,8 +130,9 @@ def top1_agreement(gold: list[str], neighbor: list[str], labels: list[str]) -> d
     for label in labels:
         pairs = [(g, n) for g, n in zip(gold, neighbor, strict=True) if g == label]
         per_class[label] = round(sum(g == n for g, n in pairs) / len(pairs), 4) if pairs else None
-    overall = sum(g == n for g, n in zip(gold, neighbor, strict=True)) / len(gold)
-    return {"n": len(gold), "top1_agreement": round(overall, 4), "per_class": per_class}
+    hits = sum(g == n for g, n in zip(gold, neighbor, strict=True))
+    overall = round(hits / len(gold), 4) if gold else None  # None = no rows to score
+    return {"n": len(gold), "top1_agreement": overall, "per_class": per_class}
 
 
 def evaluate(cfg: dict[str, Any], encode: Encoder | None = None) -> dict[str, Any]:
@@ -130,10 +144,7 @@ def evaluate(cfg: dict[str, Any], encode: Encoder | None = None) -> dict[str, An
     train_labels = [m["category"] for m in meta]
 
     # Baseline: same nearest-neighbor idea, but with TF-IDF char n-gram vectors (Phase 2 settings).
-    tf = cfg["baseline"]["tfidf"]
-    vectorizer = TfidfVectorizer(
-        analyzer=tf["analyzer"], ngram_range=(tf["ngram_min"], tf["ngram_max"])
-    )  # rows are L2-normalized by default, so X @ Q.T is cosine similarity
+    vectorizer = make_tfidf_vectorizer(cfg)  # same settings as the Phase 2 baseline
     train_tfidf = vectorizer.fit_transform([m["text"] for m in meta])
 
     report: dict[str, Any] = {
@@ -156,6 +167,10 @@ def evaluate(cfg: dict[str, Any], encode: Encoder | None = None) -> dict[str, An
     out.parent.mkdir(parents=True, exist_ok=True)
     out.write_text(json.dumps(report, indent=2), encoding="utf-8")
     return report
+
+
+def _fmt(x: float | None) -> str:
+    return "-" if x is None else f"{x:.3f}"  # "-" = category absent from this split
 
 
 def main(argv: list[str] | None = None) -> None:
@@ -181,7 +196,7 @@ def main(argv: list[str] | None = None) -> None:
             )
             for label in emb["per_class"]:
                 e, t = emb["per_class"][label], tfidf["per_class"][label]
-                print(f"  {label:<20}{e:>10.3f}{t:>8.3f}")
+                print(f"  {label:<20}{_fmt(e):>10}{_fmt(t):>8}")
     print(f"\nIndex saved to {index_dir(cfg)}; report in reports/search.json")
 
 

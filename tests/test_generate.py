@@ -126,3 +126,15 @@ def test_unknown_heldout_template_rejected(cfg, rows):
     bad = {**cfg, "data": {**cfg["data"], "heldout_templates": ["no_such_template"]}}
     with pytest.raises(ValueError, match="no_such_template"):
         build_dataset_dict(rows, bad)
+
+
+def test_heldout_lists_must_not_overlap(cfg, rows):
+    data = {**cfg["data"], "val_heldout_templates": [cfg["data"]["heldout_templates"][0]]}
+    with pytest.raises(ValueError, match="both held-out lists"):
+        build_dataset_dict(rows, {**cfg, "data": data})
+
+
+def test_heldout_template_of_unconfigured_vendor_rejected(cfg, rows):
+    data = {**cfg["data"], "vendors": ["cisco_ios", "cisco_ise", "cisco_wlc"]}
+    with pytest.raises(ValueError, match="pan_auth_fail"):
+        build_dataset_dict(rows, {**cfg, "data": data})

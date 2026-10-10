@@ -17,15 +17,15 @@
     },
     "tfidf": {
       "n": 205,
-      "top1_agreement": 0.9902,
+      "top1_agreement": 1.0,
       "per_class": {
         "auth_failure": 1.0,
         "config_change": 1.0,
         "link_event": 1.0,
-        "threat": 0.96,
+        "threat": 1.0,
         "vpn": 1.0,
         "wireless": 1.0,
-        "noise": 0.973
+        "noise": 1.0
       }
     }
   },
@@ -45,15 +45,15 @@
     },
     "tfidf": {
       "n": 453,
-      "top1_agreement": 0.479,
+      "top1_agreement": 0.4901,
       "per_class": {
         "auth_failure": 0.0857,
         "config_change": 1.0,
         "link_event": 0.1912,
         "threat": 0.092,
-        "vpn": 0.7387,
-        "wireless": 0.7123,
-        "noise": 0.1667
+        "vpn": 0.7297,
+        "wireless": 0.7808,
+        "noise": 0.2083
       }
     }
   }

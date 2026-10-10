@@ -190,6 +190,7 @@ def train(cfg: dict[str, Any]) -> dict[str, Any]:
         "max_length": ncfg["training"]["max_length"],
         "train_rows": len(tokenized["train"]),
         "epochs_run": round(trainer.state.epoch or 0, 2),
+        "best_checkpoint": trainer.state.best_model_checkpoint,
         "best_metric": best_metric,
         "best_metric_value": trainer.state.best_metric,
         "train_seconds": train_seconds,

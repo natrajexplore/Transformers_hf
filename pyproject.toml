@@ -9,7 +9,7 @@ description = "Transformer-based syslog triage for Cisco and Palo Alto logs"
 readme = "README.md"
 requires-python = ">=3.10"
 dependencies = [
-  "transformers>=4.44",
+  "transformers>=5.0",          # code uses v5 APIs (processing_class, dtype=, float warmup_steps)
   "datasets>=2.20",
   "evaluate>=0.4",
   "accelerate>=0.33",
@@ -27,7 +27,8 @@ dependencies = [
 
 [project.optional-dependencies]
 dev = ["pytest", "ruff", "ipykernel"]
-stretch = ["peft"]
+stretch = ["peft", "rouge_score"]   # Phase 7: LoRA summarizer + ROUGE metric
+serve = ["mcp>=2"]                   # Phase 8: expose LogSense as MCP tools
 
 [tool.setuptools.packages.find]
 where = ["src"]

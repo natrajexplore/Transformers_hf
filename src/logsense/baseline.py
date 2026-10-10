@@ -39,6 +39,37 @@ from logsense.config import load_config
 from logsense.metrics import classification_metrics
 
 
+def load_zero_shot(cfg: dict[str, Any]) -> Any:
+    from transformers import pipeline
+
+    # pipeline() bundles three steps: tokenizer (text -> token ids), model (ids -> logits),
+    # and task-specific post-processing (logits -> {"labels": [...], "scores": [...]}).
+    return pipeline("zero-shot-classification", model=cfg["models"]["zero_shot"])
+
+
+def make_tfidf_vectorizer(cfg: dict[str, Any]) -> TfidfVectorizer:
+    """The one TF-IDF definition, shared with the search baseline in search.py."""
+    tf = cfg["baseline"]["tfidf"]
+    return TfidfVectorizer(
+        analyzer=tf["analyzer"],
+        ngram_range=(tf["ngram_min"], tf["ngram_max"]),
+        max_features=tf["max_features"],
+        lowercase=True,
+    )  # rows are L2-normalized by default, so a dot product of two rows is cosine similarity
+
+
+def fit_tfidf(train_texts: list[str], train_labels: list[str], cfg: dict[str, Any]) -> Any:
+    """Fit TF-IDF + logistic regression on the training split."""
+    b = cfg["baseline"]
+    model = make_pipeline(
+        make_tfidf_vectorizer(cfg),
+        LogisticRegression(
+            C=b["logreg_C"], max_iter=b["logreg_max_iter"], random_state=cfg["seed"]
+        ),
+    )
+    return model.fit(train_texts, train_labels)
+
+
 def run_zero_shot(
     texts: list[str], cfg: dict[str, Any], clf: Callable[..., Any] | None = None
 ) -> list[str]:
@@ -46,13 +77,7 @@ def run_zero_shot(
 
     ``clf`` defaults to a Hugging Face pipeline; tests pass a fake to avoid the download.
     """
-    if clf is None:
-        from transformers import pipeline
-
-        # pipeline() bundles three steps: tokenizer (text -> token ids), model (ids -> logits),
-        # and task-specific post-processing (logits -> {"labels": [...], "scores": [...]}).
-        clf = pipeline("zero-shot-classification", model=cfg["models"]["zero_shot"])
-
+    clf = clf or load_zero_shot(cfg)
     phrases: dict[str, str] = cfg["baseline"]["zero_shot_labels"]
     phrase_to_label = {phrase: label for label, phrase in phrases.items()}
     batch = cfg["training"]["batch_size"]
@@ -77,18 +102,7 @@ def run_tfidf(
     train_texts: list[str], train_labels: list[str], test_texts: list[str], cfg: dict[str, Any]
 ) -> list[str]:
     """Fit TF-IDF + logistic regression on train, predict test. Returns label names."""
-    tf = cfg["baseline"]["tfidf"]
-    model = make_pipeline(
-        TfidfVectorizer(
-            analyzer=tf["analyzer"],
-            ngram_range=(tf["ngram_min"], tf["ngram_max"]),
-            max_features=tf["max_features"],
-            lowercase=True,
-        ),
-        LogisticRegression(C=cfg["baseline"]["logreg_C"], max_iter=2000, random_state=cfg["seed"]),
-    )
-    model.fit(train_texts, train_labels)
-    return list(model.predict(test_texts))
+    return list(fit_tfidf(train_texts, train_labels, cfg).predict(test_texts))
 
 
 def main(argv: list[str] | None = None) -> None:
@@ -108,22 +122,27 @@ def main(argv: list[str] | None = None) -> None:
     train_labels = [names[i] for i in dsd["train"]["label"]]
     eval_splits = [s for s in ("test", "test_unseen") if s in dsd]
 
+    # Fit / load each baseline once, then only predict per split.
+    t0 = time.perf_counter()
+    tfidf_model = fit_tfidf(train_texts, train_labels, cfg)
+    fit_seconds = round(time.perf_counter() - t0, 1)
+    zero_shot_clf = load_zero_shot(cfg)
+
     report: dict[str, Any] = {}
     for split in eval_splits:
         texts = list(dsd[split]["text"])
         gold = [names[i] for i in dsd[split]["label"]]
 
-        t0 = time.perf_counter()
-        tfidf_preds = run_tfidf(train_texts, train_labels, texts, cfg)
+        tfidf_preds = list(tfidf_model.predict(texts))
         tfidf = {
-            "seconds": round(time.perf_counter() - t0, 1),
+            "fit_seconds": fit_seconds,
             **classification_metrics(gold, tfidf_preds, labels),
         }
 
         # Rows are already shuffled, so the first N are a fair random sample.
         n = args.zero_shot_limit or len(texts)
         t0 = time.perf_counter()
-        zs_preds = run_zero_shot(texts[:n], cfg)
+        zs_preds = run_zero_shot(texts[:n], cfg, clf=zero_shot_clf)
         zero_shot = {
             "model": cfg["models"]["zero_shot"],
             "seconds": round(time.perf_counter() - t0, 1),

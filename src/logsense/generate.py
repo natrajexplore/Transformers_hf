@@ -1172,7 +1172,12 @@ def build_dataset_dict(rows: list[dict[str, Any]], cfg: dict[str, Any]) -> Datas
     records = [{**r, "label": label2id[r["label"]]} for r in rows]
     ds = Dataset.from_list(records, features=build_features(cfg))
 
-    known = {template_name(fn) for pool in TEMPLATES.values() for _, fn in pool}
+    vendors = set(cfg["data"]["vendors"])
+    # only templates of the configured vendors can be held out (others are never generated)
+    known = {template_name(fn) for pool in TEMPLATES.values() for v, fn in pool if v in vendors}
+    test_held = set(cfg["data"].get("heldout_templates") or [])
+    if overlap := test_held & set(cfg["data"].get("val_heldout_templates") or []):
+        raise ValueError(f"Templates in both held-out lists: {sorted(overlap)}")
     unseen_splits: dict[str, Dataset] = {}
     for split_name, key in (
         ("test_unseen", "heldout_templates"),
@@ -1180,7 +1185,7 @@ def build_dataset_dict(rows: list[dict[str, Any]], cfg: dict[str, Any]) -> Datas
     ):
         names = set(cfg["data"].get(key) or [])
         if unknown := names - known:
-            raise ValueError(f"Unknown {key}: {sorted(unknown)}")
+            raise ValueError(f"Unknown {key} (or vendor not configured): {sorted(unknown)}")
         if names:
             unseen_splits[split_name] = ds.filter(lambda ex, n=names: ex["template"] in n)
             ds = ds.filter(lambda ex, n=names: ex["template"] not in n)

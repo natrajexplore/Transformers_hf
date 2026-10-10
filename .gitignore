@@ -13,6 +13,7 @@ data/processed/*
 !data/processed/.gitkeep
 models/
 reports/*.png
+reports/*.log
 wandb/
 runs/
 

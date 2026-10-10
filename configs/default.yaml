@@ -70,6 +70,7 @@ baseline:
     ngram_max: 5
     max_features: 50000
   logreg_C: 10.0
+  logreg_max_iter: 2000
 
 ner:
   # Overrides `training` for token classification. 256 tokens: longest log is ~197, and
@@ -77,6 +78,35 @@ ner:
   max_length: 256
   epochs: 3
   learning_rate: 5.0e-5     # NER heads commonly train a bit faster than sequence classifiers
+
+summarizer:
+  model: Qwen/Qwen2.5-0.5B-Instruct   # small instruct LLM (<=1.5B per PHASES.md), CPU-friendly
+  # PHASES.md suggests 10-50 logs per burst; capped at 15 so CPU LoRA training stays ~30 min.
+  burst_min: 8
+  burst_max: 15
+  train_bursts: 120
+  eval_bursts: 20
+  max_new_tokens: 120
+  max_length: 3072          # prompt + summary tokens; longer examples are skipped, not cut
+  epochs: 1
+  learning_rate: 2.0e-4     # LoRA trains few weights, so a larger LR than full fine-tuning
+  batch_size: 1             # one long burst per forward pass fits CPU memory...
+  gradient_accumulation_steps: 4   # ...but update weights every 4 bursts (effective batch 4)
+  warmup_ratio: 0.1
+  logging_steps: 5
+  gradient_checkpointing: true   # trade compute for memory on long bursts
+  lora:
+    r: 8                    # rank of the low-rank update matrices
+    alpha: 16               # scaling of the update (alpha / r)
+    dropout: 0.05
+    target_modules: [q_proj, k_proj, v_proj, o_proj]   # attention projections
+  incidents:                # what the reference note says per category (noise is filler)
+    auth_failure: {phrase: authentication failure, keywords: [auth, login, credential, password], action: Check the source and user for brute force; lock or reset the account if unexpected}
+    config_change: {phrase: configuration change, keywords: [config, change, command], action: Verify the change against an approved change request and the admin who made it}
+    link_event: {phrase: interface up/down, keywords: [link, interface, port, down, flap], action: Check the affected interfaces for flapping, cabling, and errors}
+    threat: {phrase: security threat, keywords: [threat, attack, malware, intrusion, rogue], action: Isolate the affected hosts and escalate to the security team}
+    vpn: {phrase: VPN, keywords: [vpn, tunnel, ike, ipsec, globalprotect], action: Check tunnel peers, IKE/IPsec settings, and remote-access gateway health}
+    wireless: {phrase: wireless, keywords: [wireless, wi-fi, wifi, ap, client, ssid], action: Check AP health, controller join status, and RF conditions}
 
 search:
   top_k: 5                  # neighbors returned by find_similar
@@ -90,6 +120,9 @@ training:
   weight_decay: 0.01
   warmup_ratio: 0.1
   early_stopping_patience: 2
+  lr_scheduler: linear
+  save_total_limit: 2
+  logging_steps: 20
 
 paths:
   models_dir: models

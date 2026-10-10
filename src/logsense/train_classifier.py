@@ -65,17 +65,26 @@ def tokenize_dataset(dsd: DatasetDict, tokenizer: Any, max_length: int) -> Datas
     )
 
 
-_accuracy = evaluate.load("accuracy")
-_f1 = evaluate.load("f1")
+@lru_cache(maxsize=1)
+def _metrics() -> tuple[Any, Any]:
+    # Loaded on first use, not at import: importing this module for predict() needs no Hub I/O.
+    return evaluate.load("accuracy"), evaluate.load("f1")
 
 
 def compute_metrics(eval_pred: Any) -> dict[str, float]:
     """Called by Trainer after each evaluation. ``eval_pred`` = (logits, label ids)."""
     logits, labels = eval_pred
     preds = np.argmax(logits, axis=-1)  # highest logit = predicted class
+    accuracy, f1 = _metrics()
     return {
-        "accuracy": _accuracy.compute(predictions=preds, references=labels)["accuracy"],
-        "macro_f1": _f1.compute(predictions=preds, references=labels, average="macro")["f1"],
+        "accuracy": accuracy.compute(predictions=preds, references=labels)["accuracy"],
+        # average over *every* class (absent ones score 0), matching metrics.classification_metrics
+        "macro_f1": f1.compute(
+            predictions=preds,
+            references=labels,
+            average="macro",
+            labels=list(range(logits.shape[-1])),
+        )["f1"],
     }
 
 
@@ -93,7 +102,7 @@ def build_training_args(
         ],  # small (2e-5): we adjust, not overwrite, pretrained weights
         weight_decay=t["weight_decay"],  # L2-style penalty on weights; mild regularization
         warmup_steps=t["warmup_ratio"],  # float < 1 = fraction of steps spent ramping LR up from 0
-        lr_scheduler_type="linear",  # after warmup, LR decays linearly to 0
+        lr_scheduler_type=t["lr_scheduler"],  # "linear": after warmup, LR decays to 0
         eval_strategy="epoch",  # evaluate on the validation split after every epoch...
         save_strategy="epoch",  # ...and checkpoint at the same points (must match for best-model)
         load_best_model_at_end=True,  # restore the checkpoint with the best validation metric
@@ -101,9 +110,9 @@ def build_training_args(
         # prefixed by set name, e.g. "validation_unseen_macro_f1". Early stopping watches it too.
         metric_for_best_model=best_metric,
         greater_is_better=True,
-        save_total_limit=2,  # keep disk use bounded (best + latest)
+        save_total_limit=t["save_total_limit"],  # keep disk use bounded (best + latest)
         logging_strategy="steps",
-        logging_steps=20,  # print training loss every 20 steps
+        logging_steps=t["logging_steps"],  # print training loss every N steps
         seed=cfg["seed"],  # model head init + data shuffling are reproducible
         report_to="none",  # no wandb/tensorboard
         use_cpu=t.get("use_cpu", False),  # Trainer picks a GPU automatically if one exists
@@ -144,6 +153,9 @@ def train(cfg: dict[str, Any]) -> dict[str, Any]:
     base = cfg["models"]["classifier"]
 
     dsd = load_from_disk(cfg["data"]["processed_dir"])
+    if dsd["train"].features["label"].names != labels:
+        # label ids in the data come from generation time; a changed config would mislabel them
+        raise ValueError("configs labels differ from the saved dataset; re-run logsense.generate")
     tokenizer = AutoTokenizer.from_pretrained(base)
     tokenized = tokenize_dataset(dsd, tokenizer, cfg["training"]["max_length"])
 
@@ -195,7 +207,7 @@ def train(cfg: dict[str, Any]) -> dict[str, Any]:
         metrics = classification_metrics(y_true, y_pred, labels)
         report[split] = metrics
         save_confusion_png(
-            metrics, f"DistilBERT — {split}", reports_dir / f"classifier_confusion_{split}.png"
+            metrics, f"{base} — {split}", reports_dir / f"classifier_confusion_{split}.png"
         )
 
     reports_dir.mkdir(parents=True, exist_ok=True)

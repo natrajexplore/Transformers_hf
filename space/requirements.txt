@@ -1,0 +1,2 @@
+# Installs the logsense package (and its dependencies from pyproject.toml) from GitHub.
+logsense @ git+https://github.com/natrajexplore/Transformers_hf.git

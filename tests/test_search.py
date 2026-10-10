@@ -9,7 +9,7 @@ import pytest
 
 from logsense.config import load_config
 from logsense.generate import build_dataset_dict, generate_rows
-from logsense.search import build, evaluate, find_similar, top1_agreement
+from logsense.search import build, evaluate, find_similar, find_similar_batch, top1_agreement
 
 
 def fake_encode(texts, dim=256):
@@ -60,3 +60,14 @@ def test_evaluate_report(cfg):
     for split in ("test", "test_unseen"):
         for method in ("embeddings", "tfidf"):
             assert 0.0 <= report[split][method]["top1_agreement"] <= 1.0
+
+
+def test_find_similar_batch_matches_single(cfg):
+    texts = ["Login failed for user01", "%LINK-3-UPDOWN: Interface Gi1/0/1, changed state"]
+    batch = find_similar_batch(texts, k=2, cfg=cfg, encode=fake_encode)
+    assert batch == [find_similar(t, k=2, cfg=cfg, encode=fake_encode) for t in texts]
+
+
+def test_top1_agreement_empty_split():
+    m = top1_agreement([], [], ["a"])
+    assert m == {"n": 0, "top1_agreement": None, "per_class": {"a": None}}

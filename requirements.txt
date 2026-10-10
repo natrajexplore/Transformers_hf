@@ -1,5 +1,5 @@
 # Convenience mirror of pyproject.toml. Preferred: pip install -e ".[dev]"
-transformers>=4.44
+transformers>=5.0
 datasets>=2.20
 evaluate>=0.4
 accelerate>=0.33
