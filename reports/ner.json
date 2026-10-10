@@ -1,0 +1,110 @@
+{
+  "base_model": "distilbert-base-uncased",
+  "max_length": 256,
+  "train_rows": 1540,
+  "epochs_run": 3.0,
+  "best_metric": "validation_unseen_f1",
+  "best_metric_value": 0.897872340425532,
+  "train_seconds": 1894.9,
+  "train_loss": 0.1598,
+  "test": {
+    "INTERFACE": {
+      "precision": 1.0,
+      "recall": 1.0,
+      "f1-score": 1.0,
+      "support": 94
+    },
+    "IP": {
+      "precision": 1.0,
+      "recall": 1.0,
+      "f1-score": 1.0,
+      "support": 190
+    },
+    "MAC": {
+      "precision": 1.0,
+      "recall": 1.0,
+      "f1-score": 1.0,
+      "support": 55
+    },
+    "RULE": {
+      "precision": 1.0,
+      "recall": 1.0,
+      "f1-score": 1.0,
+      "support": 31
+    },
+    "USER": {
+      "precision": 1.0,
+      "recall": 1.0,
+      "f1-score": 1.0,
+      "support": 110
+    },
+    "VLAN": {
+      "precision": 1.0,
+      "recall": 1.0,
+      "f1-score": 1.0,
+      "support": 19
+    },
+    "micro avg": {
+      "precision": 1.0,
+      "recall": 1.0,
+      "f1-score": 1.0,
+      "support": 499
+    },
+    "macro avg": {
+      "precision": 1.0,
+      "recall": 1.0,
+      "f1-score": 1.0,
+      "support": 499
+    }
+  },
+  "test_unseen": {
+    "INTERFACE": {
+      "precision": 0.7989,
+      "recall": 0.9675,
+      "f1-score": 0.8752,
+      "support": 308
+    },
+    "IP": {
+      "precision": 0.8094,
+      "recall": 0.8811,
+      "f1-score": 0.8437,
+      "support": 530
+    },
+    "MAC": {
+      "precision": 0.4311,
+      "recall": 0.9798,
+      "f1-score": 0.5988,
+      "support": 99
+    },
+    "RULE": {
+      "precision": 0.0,
+      "recall": 0.0,
+      "f1-score": 0.0,
+      "support": 0
+    },
+    "USER": {
+      "precision": 1.0,
+      "recall": 1.0,
+      "f1-score": 1.0,
+      "support": 130
+    },
+    "VLAN": {
+      "precision": 0.5429,
+      "recall": 0.5135,
+      "f1-score": 0.5278,
+      "support": 74
+    },
+    "micro avg": {
+      "precision": 0.7485,
+      "recall": 0.9027,
+      "f1-score": 0.8184,
+      "support": 1141
+    },
+    "macro avg": {
+      "precision": 0.597,
+      "recall": 0.7237,
+      "f1-score": 0.6409,
+      "support": 1141
+    }
+  }
+}
