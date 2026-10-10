@@ -41,7 +41,7 @@ def tiny_setup(tmp_path_factory, tokenizer):
 
 def test_tokenize_keeps_only_model_inputs(tokenizer):
     cfg = load_config()
-    cfg["data"]["num_samples"] = 140
+    cfg["data"]["num_samples"] = 350  # enough rows per class to stratify after hold-outs
     dsd = build_dataset_dict(generate_rows(cfg), cfg)
     tok = tokenize_dataset(dsd, tokenizer, max_length=32)
     cols = set(tok["train"].column_names)

@@ -19,11 +19,15 @@ Hugging Face concepts used here
 Labeling rules that make some examples deliberately "hard"
 -----------------------------------------------------------
 * A successful login (IOS ``LOGIN_SUCCESS``, ISE ``5200``) is ``noise``, not ``auth_failure``.
+  So are a successful 802.1X/MAB session (``SESSION_MGR-5-SUCCESS``), routine CoA (``5417``)
+  and RADIUS accounting (``3000``/``3001``).
+* A config command logged through TACACS+ accounting (ISE ``3300``) is ``config_change``.
 * A PAN-OS TRAFFIC log is ``noise`` even when the action is ``deny`` (routine policy
   enforcement). Only THREAT logs are ``threat``.
 * Any GlobalProtect log is ``vpn``, including GlobalProtect authentication failures.
 * An interface up/down on the WLC (its uplinks) is ``link_event``, not ``wireless``.
-* Routine messages from the WLC (NTP sync) are ``noise``, not ``wireless``.
+* Routine messages from the WLC (NTP sync, a successful web-UI admin login) are ``noise``,
+  not ``wireless``; a client excluded for a wrong PSK is ``auth_failure``.
 * Authentication failures are ``auth_failure`` on every vendor, including WLC 802.1X
   failures (but GlobalProtect failures stay ``vpn``, see above).
 * Security detections are ``threat`` on every vendor: PAN-OS THREAT, IOS IPS / ARP
@@ -229,10 +233,16 @@ def ise_5400(rng, dt):
 def ise_5405(rng, dt):
     tpl = _ise_hdr(rng, dt, "CISE_Failed_Attempts", 5405, "NOTICE") + (
         "RADIUS: RADIUS Request dropped, ConfigVersionId={cv}, Device IP Address={nas}, "
-        "UserName={user}, Calling-Station-ID={mac}, "
-        "FailureReason=11036 The Message-Authenticator RADIUS attribute is invalid"
+        "UserName={user}, Calling-Station-ID={mac}, FailureReason={reason}"
     )
     return tpl, {
+        # 11007 = the switch isn't defined as a network device in ISE ("misconfigured NAD")
+        "reason": rng.choice(
+            [
+                "11036 The Message-Authenticator RADIUS attribute is invalid",
+                "11007 Could not locate Network Device or AAA Client",
+            ]
+        ),
         "cv": str(rng.randint(10, 400)),
         "nas": _e(_private_ip(rng), "IP"),
         "user": _e(_user(rng), "USER"),
@@ -538,6 +548,9 @@ def wlc_client_deauth(rng, dt):
             "CO_CLIENT_DELETE_REASON_MN_AP_DISASSOC",
             "CLIENT_DELETE_REASON_SESSION_TIMEOUT",
             "CO_CLIENT_DELETE_REASON_DOT11_DEAUTH",
+            # verbatim reason names from BRKEWN-3628
+            "CO_CLIENT_DELETE_REASON_DEAUTH_OR_DISASSOC_REQ",
+            "CO_CLIENT_DELETE_REASON_GROUP_KEY_UPDATE_TIMEOUT",
         ]
     )
     tpl = _wlc_hdr(rng, dt) + (
@@ -798,6 +811,192 @@ def ise_profiler(rng, dt):  # noise on ISE: routine endpoint profiling
     }
 
 
+# --- data v2: ISE / IBNS 2.0 events, selected from Cisco Live 2026 BRKSEC-2347 (ISE deployment
+#     tips: 802.1X/MAB policies, live-log failures, Easy Connect CoA, TACACS+) and BRKSEC-2660
+#     (RADIUS accounting). Formats from public Cisco docs; values are fake. ---
+
+
+def _ios_iface_short(rng: random.Random) -> str:
+    return rng.choice([f"Gi1/0/{rng.randint(1, 48)}", f"Gi2/0/{rng.randint(1, 48)}"])
+
+
+def _session_hdr(rng: random.Random, dt: datetime, mnemonic: str) -> str:
+    """IOS-XE session-manager prefix, e.g. ``%DOT1X-5-FAIL: Switch 1 R0/0: sessmgrd: ``."""
+    return _ios_hdr(rng, dt) + f"%{mnemonic}: Switch {rng.randint(1, 2)} R0/0: sessmgrd: "
+
+
+def _audit_id(rng: random.Random) -> str:
+    return f"{rng.randint(0, 16**24 - 1):024X}"
+
+
+def ios_dot1x_mab_fail(rng, dt):  # auth_failure: 802.1X or MAB failed on a switchport
+    if rng.random() < 0.5:
+        tpl = _session_hdr(rng, dt, "DOT1X-5-FAIL") + (
+            "Authentication failed for client ({mac}) with reason ({reason}) on Interface "
+            "{iface} AuditSessionID {sess} Username: {user}"
+        )
+        fields: dict[str, Field] = {
+            "reason": rng.choice(["Cred Fail", "Timeout", "No Response from Client"]),
+            "user": _e(_user(rng), "USER"),
+        }
+    else:
+        tpl = _session_hdr(rng, dt, "MAB-5-FAIL") + (
+            "Authentication failed for client ({mac}) on Interface {iface} AuditSessionID {sess}"
+        )
+        fields = {}
+    return tpl, {
+        **fields,
+        "mac": _e(_mac_cisco(rng), "MAC"),
+        "iface": _e(_ios_iface_short(rng), "INTERFACE"),
+        "sess": _audit_id(rng),
+    }
+
+
+def ios_session_fail(rng, dt):  # auth_failure: authorization failed / not applied
+    tpl = _session_hdr(rng, dt, "SESSION_MGR-5-FAIL") + (
+        "Authorization failed or unapplied for client ({mac}) method ({method}) on Interface "
+        "{iface} AuditSessionID {sess}"
+    )
+    return tpl, {
+        "mac": _e(_mac_cisco(rng), "MAC"),
+        "method": rng.choice(["dot1x", "mab"]),
+        "iface": _e(_ios_iface_short(rng), "INTERFACE"),
+        "sess": _audit_id(rng),
+    }
+
+
+def ios_session_success(rng, dt):  # noise (hard example): a normal successful session
+    tpl = _session_hdr(rng, dt, "SESSION_MGR-5-SUCCESS") + (
+        "Authorization succeeded for client ({mac}) on Interface {iface} AuditSessionID {sess}"
+    )
+    return tpl, {
+        "mac": _e(_mac_cisco(rng), "MAC"),
+        "iface": _e(_ios_iface_short(rng), "INTERFACE"),
+        "sess": _audit_id(rng),
+    }
+
+
+def _ise_radius_fields(rng: random.Random) -> dict[str, Field]:
+    return {
+        "cv": str(rng.randint(10, 400)),
+        "nas": _e(_private_ip(rng), "IP"),
+        "user": _e(_user(rng), "USER"),
+        "mac": _e(_mac_dash(rng), "MAC"),
+        "iface": _e(_ios_iface(rng), "INTERFACE"),
+    }
+
+
+def ise_5411(rng, dt):  # auth_failure: supplicant gave up mid-EAP (cert/supplicant issues)
+    tpl = _ise_hdr(rng, dt, "CISE_Failed_Attempts", 5411, "NOTICE") + (
+        "RADIUS: Supplicant stopped responding to ISE, ConfigVersionId={cv}, "
+        "Device IP Address={nas}, UserName={user}, Calling-Station-ID={mac}, NAS-Port-Id={iface}, "
+        "FailureReason=12321 PEAP failed SSL/TLS handshake because the client rejected the ISE "
+        "local-certificate"
+    )
+    return tpl, _ise_radius_fields(rng)
+
+
+def ise_5434(rng, dt):  # auth_failure: ISE collapsing repeated failures from one endpoint
+    tpl = _ise_hdr(rng, dt, "CISE_Failed_Attempts", 5434, "NOTICE") + (
+        "RADIUS: Endpoint conducted several failed authentications of the same scenario, "
+        "ConfigVersionId={cv}, Device IP Address={nas}, UserName={user}, "
+        "Calling-Station-ID={mac}, NAS-Port-Id={iface}, FailureReason=24408 User authentication "
+        "against Active Directory failed since user has entered the wrong password"
+    )
+    return tpl, _ise_radius_fields(rng)
+
+
+def ise_coa(rng, dt):  # noise: routine CoA (e.g. after profiling or an Easy Connect AD login)
+    tpl = _ise_hdr(rng, dt, "CISE_Passed_Authentications", 5417, "NOTICE") + (
+        "Dynamic-Authorization: Dynamic Authorization succeeded, ConfigVersionId={cv}, "
+        "Device IP Address={nas}, UserName={user}, Calling-Station-ID={mac}, NAS-Port-Id={iface}, "
+        "Event-Trigger={trigger}"
+    )
+    trigger = rng.choice(["Profiler-CoA", "EasyConnect-AD-Login", "Session-Reauthenticate"])
+    return tpl, {**_ise_radius_fields(rng), "trigger": trigger}
+
+
+def ise_accounting(rng, dt):  # noise: RADIUS accounting start / stop
+    start = rng.random() < 0.5
+    code, kind = (3000, "start") if start else (3001, "stop")
+    tpl = _ise_hdr(rng, dt, "CISE_RADIUS_Accounting", code, "NOTICE") + (
+        "Radius-Accounting: RADIUS Accounting {kind} request, ConfigVersionId={cv}, "
+        "Device IP Address={nas}, UserName={user}, Calling-Station-ID={mac}, NAS-Port-Id={iface}, "
+        "Acct-Status-Type={status}, Acct-Session-Id={acct}"
+    )
+    return tpl, {
+        **_ise_radius_fields(rng),
+        "kind": kind,
+        "status": "Start" if start else "Stop",
+        "acct": f"{rng.randint(0, 16**8 - 1):08X}",
+    }
+
+
+def ise_tacacs_cmd(rng, dt):  # config_change: a config command logged via TACACS+ accounting
+    tpl = _ise_hdr(rng, dt, "CISE_TACACS_Accounting", 3300, "NOTICE") + (
+        "TACACS-Accounting: TACACS+ Accounting with Command, ConfigVersionId={cv}, "
+        "Device IP Address={nas}, UserName={user}, Remote-Address={src}, CmdSet=[ CmdAV="
+    )
+    fields: dict[str, Field] = {
+        "cv": str(rng.randint(10, 400)),
+        "nas": _e(_private_ip(rng), "IP"),
+        "user": _e(_user(rng), "USER"),
+        "src": _e(_private_ip(rng), "IP"),
+    }
+    if rng.random() < 0.5:
+        tpl += "interface CmdArgAV={iface} CmdArgAV=<cr> ]"
+        fields["iface"] = _e(_ios_iface(rng), "INTERFACE")
+    else:
+        tpl += "switchport CmdArgAV=access CmdArgAV=vlan CmdArgAV={vlan} CmdArgAV=<cr> ]"
+        fields["vlan"] = _e(_vlan(rng), "VLAN")
+    return tpl, fields
+
+
+# --- data v2: Catalyst 9800 syslog formats shown verbatim in Cisco Live 2026 BRKEWN-3628
+#     (Troubleshoot Catalyst 9800 Wireless Controllers). Values are fake. ---
+
+
+def wlc_ap_heartbeat(rng, dt):  # wireless: AP lost its CAPWAP session to the controller
+    tpl = _wlc_hdr(rng, dt) + (
+        "%CAPWAPAC_SMGR_TRACE_MESSAGE-3-EWLC_GEN_ERR: Chassis 1 R0/0: wncd: Error in "
+        "Session-IP: {ip}[{port}] Mac: {mac} Heartbeat timer expiry for AP. Close CAPWAP DTLS "
+        "session"
+    )
+    return tpl, {
+        "ip": _e(_private_ip(rng), "IP"),
+        "port": str(rng.randint(5000, 65000)),
+        "mac": _e(_mac_cisco(rng), "MAC"),
+    }
+
+
+def wlc_client_excluded(rng, dt):  # auth_failure (hard: a WLC line, but it's a bad PSK)
+    tpl = _wlc_hdr(rng, dt) + (
+        "%CLIENT_EXCLUSION_SERVER-5-ADD_TO_BLACKLIST_REASON: Chassis 1 R0/0: wncmgrd: "
+        "Client MAC: {mac} was added to exclusion list, reason: Wrong PSK"
+    )
+    return tpl, {"mac": _e(_mac_cisco(rng), "MAC")}
+
+
+def wlc_session_fail(rng, dt):  # auth_failure: wireless authorization failed
+    tpl = _wlc_hdr(rng, dt) + (
+        "%SESSION_MGR-5-FAIL: Chassis 1 R0/0: sessmgrd: Authorization failed or unapplied for "
+        "client ({mac}) on Interface capwap_9000{cap} AuditSessionID {sess}"
+    )
+    return tpl, {
+        "mac": _e(_mac_cisco(rng), "MAC"),
+        "cap": f"{rng.randint(0, 0xFFFF):04x}",
+        "sess": _audit_id(rng),
+    }
+
+
+def wlc_webui_login(rng, dt):  # noise: successful admin login to the 9800 web UI
+    tpl = _wlc_hdr(rng, dt) + (
+        "%WEBSERVER-5-LOGIN_PASSED: Chassis 1 R0/0: nginx: Login Successful from host {ip} by "
+        "user '{user}' using crypto cipher 'ECDHE-RSA-AES128-GCM-SHA256'"
+    )
+    return tpl, {"ip": _e(_private_ip(rng), "IP"), "user": _e(_user(rng), "USER")}
+
+
 # (vendor, template) pairs per label. Vendors are filtered by config `data.vendors`.
 TEMPLATES: dict[str, list[tuple[str, Template]]] = {
     "auth_failure": [
@@ -808,6 +1007,12 @@ TEMPLATES: dict[str, list[tuple[str, Template]]] = {
         ("panos", pan_auth_fail),
         ("panos", pan_auth_log),
         ("cisco_wlc", wlc_dot1x_fail),
+        ("cisco_ios", ios_dot1x_mab_fail),
+        ("cisco_ios", ios_session_fail),
+        ("cisco_ise", ise_5411),
+        ("cisco_ise", ise_5434),
+        ("cisco_wlc", wlc_client_excluded),
+        ("cisco_wlc", wlc_session_fail),
     ],
     "config_change": [
         ("cisco_ios", ios_config_i),
@@ -815,6 +1020,7 @@ TEMPLATES: dict[str, list[tuple[str, Template]]] = {
         ("cisco_wlc", partial(ios_config_i, kind="wlc")),
         ("cisco_ise", ise_config),
         ("cisco_ise", ise_policy_change),
+        ("cisco_ise", ise_tacacs_cmd),
         ("panos", pan_config),
     ],
     "link_event": [
@@ -843,6 +1049,7 @@ TEMPLATES: dict[str, list[tuple[str, Template]]] = {
         ("cisco_wlc", wlc_client_deauth),
         ("cisco_wlc", wlc_ap_join),
         ("cisco_wlc", wlc_apmgr),
+        ("cisco_wlc", wlc_ap_heartbeat),
     ],
     "noise": [
         ("cisco_ios", ntp_sync),
@@ -851,6 +1058,10 @@ TEMPLATES: dict[str, list[tuple[str, Template]]] = {
         ("cisco_ios", ios_login_success),
         ("cisco_ise", ise_5200),
         ("cisco_ise", ise_profiler),
+        ("cisco_ios", ios_session_success),
+        ("cisco_ise", ise_coa),
+        ("cisco_ise", ise_accounting),
+        ("cisco_wlc", wlc_webui_login),
         ("panos", pan_traffic),
         ("panos", pan_traffic),
         ("cisco_ios", ios_logging_host),

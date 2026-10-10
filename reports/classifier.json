@@ -1,15 +1,15 @@
 {
   "base_model": "distilbert-base-uncased",
   "max_length": 128,
-  "train_rows": 1540,
+  "train_rows": 1633,
   "epochs_run": 3.0,
-  "best_checkpoint": "models\\classifier_checkpoints\\checkpoint-194",
+  "best_checkpoint": "models\\classifier_checkpoints\\checkpoint-206",
   "best_metric": "validation_unseen_macro_f1",
-  "best_metric_value": 0.3944929304730836,
-  "train_seconds": 1553.4,
-  "train_loss": 0.4602,
+  "best_metric_value": 0.37252623371198407,
+  "train_seconds": 1327.1,
+  "train_loss": 0.4761,
   "test": {
-    "n": 193,
+    "n": 205,
     "accuracy": 1.0,
     "macro_f1": 1.0,
     "per_class_f1": {
@@ -33,7 +33,7 @@
       ],
       "matrix": [
         [
-          31,
+          36,
           0,
           0,
           0,
@@ -42,28 +42,28 @@
           0
         ],
         [
-          0,
-          29,
-          0,
-          0,
-          0,
-          0,
-          0
-        ],
-        [
-          0,
           0,
           30,
           0,
           0,
           0,
+          0,
+          0
+        ],
+        [
+          0,
+          0,
+          29,
+          0,
+          0,
+          0,
           0
         ],
         [
           0,
           0,
           0,
-          26,
+          25,
           0,
           0,
           0
@@ -83,7 +83,7 @@
           0,
           0,
           0,
-          21,
+          27,
           0
         ],
         [
@@ -93,22 +93,22 @@
           0,
           0,
           0,
-          35
+          37
         ]
       ]
     }
   },
   "test_unseen": {
-    "n": 529,
-    "accuracy": 0.43478260869565216,
-    "macro_f1": 0.37751131221719453,
+    "n": 453,
+    "accuracy": 0.5099337748344371,
+    "macro_f1": 0.47511833475905335,
     "per_class_f1": {
-      "auth_failure": 0.5384615384615384,
+      "auth_failure": 0.41916167664670656,
       "config_change": 1.0,
-      "link_event": 0.56,
+      "link_event": 0.9066666666666666,
       "threat": 0.0,
       "vpn": 0.0,
-      "wireless": 0.5441176470588235,
+      "wireless": 1.0,
       "noise": 0.0
     },
     "confusion_matrix": {
@@ -123,7 +123,7 @@
       ],
       "matrix": [
         [
-          63,
+          35,
           0,
           0,
           0,
@@ -133,7 +133,7 @@
         ],
         [
           0,
-          67,
+          55,
           0,
           0,
           0,
@@ -143,7 +143,7 @@
         [
           0,
           0,
-          63,
+          68,
           0,
           0,
           0,
@@ -154,32 +154,32 @@
           0,
           0,
           0,
-          79,
-          0,
-          13
-        ],
-        [
-          108,
-          0,
-          0,
-          0,
-          0,
+          87,
           0,
           0
         ],
         [
+          87,
           0,
           0,
-          62,
           0,
           0,
-          37,
-          0
+          0,
+          24
         ],
         [
           0,
           0,
-          37,
+          0,
+          0,
+          0,
+          73,
+          0
+        ],
+        [
+          10,
+          0,
+          14,
           0,
           0,
           0,

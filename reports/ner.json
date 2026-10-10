@@ -1,110 +1,104 @@
 {
   "base_model": "distilbert-base-uncased",
   "max_length": 256,
-  "train_rows": 1540,
+  "train_rows": 1633,
   "epochs_run": 3.0,
   "best_metric": "validation_unseen_f1",
-  "best_metric_value": 0.897872340425532,
-  "train_seconds": 1894.9,
-  "train_loss": 0.1598,
+  "best_metric_value": 0.9482220835932627,
+  "train_seconds": 2238.7,
+  "train_loss": 0.1548,
   "test": {
     "INTERFACE": {
       "precision": 1.0,
       "recall": 1.0,
       "f1-score": 1.0,
-      "support": 94
+      "support": 118
     },
     "IP": {
       "precision": 1.0,
       "recall": 1.0,
       "f1-score": 1.0,
-      "support": 190
+      "support": 194
     },
     "MAC": {
       "precision": 1.0,
       "recall": 1.0,
       "f1-score": 1.0,
-      "support": 55
+      "support": 80
     },
     "RULE": {
       "precision": 1.0,
       "recall": 1.0,
       "f1-score": 1.0,
-      "support": 31
+      "support": 27
     },
     "USER": {
       "precision": 1.0,
       "recall": 1.0,
       "f1-score": 1.0,
-      "support": 110
+      "support": 101
     },
     "VLAN": {
       "precision": 1.0,
       "recall": 1.0,
       "f1-score": 1.0,
-      "support": 19
+      "support": 14
     },
     "micro avg": {
       "precision": 1.0,
       "recall": 1.0,
       "f1-score": 1.0,
-      "support": 499
+      "support": 534
     },
     "macro avg": {
       "precision": 1.0,
       "recall": 1.0,
       "f1-score": 1.0,
-      "support": 499
+      "support": 534
     }
   },
   "test_unseen": {
     "INTERFACE": {
-      "precision": 0.7989,
-      "recall": 0.9675,
-      "f1-score": 0.8752,
-      "support": 308
+      "precision": 0.9966,
+      "recall": 1.0,
+      "f1-score": 0.9983,
+      "support": 295
     },
     "IP": {
-      "precision": 0.8094,
-      "recall": 0.8811,
-      "f1-score": 0.8437,
-      "support": 530
+      "precision": 0.928,
+      "recall": 0.928,
+      "f1-score": 0.928,
+      "support": 486
     },
     "MAC": {
-      "precision": 0.4311,
-      "recall": 0.9798,
-      "f1-score": 0.5988,
-      "support": 99
-    },
-    "RULE": {
-      "precision": 0.0,
-      "recall": 0.0,
-      "f1-score": 0.0,
-      "support": 0
+      "precision": 0.2755,
+      "recall": 1.0,
+      "f1-score": 0.432,
+      "support": 73
     },
     "USER": {
       "precision": 1.0,
       "recall": 1.0,
       "f1-score": 1.0,
-      "support": 130
+      "support": 90
     },
     "VLAN": {
-      "precision": 0.5429,
-      "recall": 0.5135,
-      "f1-score": 0.5278,
-      "support": 74
+      "precision": 0.7188,
+      "recall": 0.4792,
+      "f1-score": 0.575,
+      "support": 48
     },
     "micro avg": {
-      "precision": 0.7485,
-      "recall": 0.9027,
-      "f1-score": 0.8184,
-      "support": 1141
+      "precision": 0.7973,
+      "recall": 0.9395,
+      "f1-score": 0.8626,
+      "support": 992
     },
     "macro avg": {
-      "precision": 0.597,
-      "recall": 0.7237,
-      "f1-score": 0.6409,
-      "support": 1141
+      "precision": 0.7838,
+      "recall": 0.8814,
+      "f1-score": 0.7866,
+      "support": 992
     }
   }
 }
