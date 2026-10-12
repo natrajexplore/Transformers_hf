@@ -174,8 +174,8 @@ How often the top-1 neighbor has the same category: **MiniLM 0.637** vs TF-IDF 0
 (data v2: 0.521 vs 0.490). The new formats gave embeddings more same-meaning neighbors to find.
 
 ### Burst summarizer (20 held-out bursts, prompting only)
-Qwen2.5-0.5B-Instruct mentioned the correct category 0.65 of the time, but got the exact event count
-0.00 and the exact 3-line format 0.00 (ROUGE-L 0.117). It writes long free-form markdown instead of
+Qwen2.5-0.5B-Instruct mentioned the correct category 0.70 of the time, but got the exact event count
+0.00 and the exact 3-line format 0.00 (ROUGE-L 0.107; data v3 bursts). It writes long free-form markdown instead of
 the requested note, which is the gap the pending LoRA run is meant to close.
 
 ### Takeaways

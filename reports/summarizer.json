@@ -6,23 +6,23 @@
   ],
   "prompt_only": {
     "n": 20,
-    "seconds_per_burst": 19.1,
+    "seconds_per_burst": 14.6,
     "format_ok": 0.0,
     "count_ok": 0.0,
-    "category_ok": 0.65,
-    "rougeL": 0.117,
+    "category_ok": 0.7,
+    "rougeL": 0.107,
     "examples": [
       {
         "reference": "Incident: 10 authentication failure events within 9 min (10 of 12 logs in the burst).\nScope: 8 devices affected; most frequent message: DOT1X-5-FAIL.\nAction: Check the source and user for brute force; lock or reset the account if unexpected.",
-        "prediction": "**Incident:** An unauthorized session manager failure occurred on interface capwap_9000111a on device corp-wlc-06, escalating to syslog level. This event indicates an issue where a client attempted to authenticate using a non-applied authorization token, leading to an unsuccessful session management attempt.\n\n**Scope:** There were multiple clients attempting to connect via RADIUS, including corp-wlc-06, corp-ise-11, corp-ise-02, corp-ise-03, corp-ise-04, corp-ise-0"
+        "prediction": "**Incident Summary**\n\nOn April 22nd, multiple incidents occurred across different systems:\n\n1. **Corp-WLC-06**: An authorization failure occurred due to an incorrect client MAC address in the WNCMGR session manager.\n2. **Corp-ISE-11**: A login attempt was denied by the IS server due to a mismatched PSK.\n3. **Corp-ISE-02**: An authentication failure occurred when attempting to authenticate using the Radius protocol.\n4. **Corp-ISW-11**: An unsuccessful radius accounting request was received.\n5."
       },
       {
-        "reference": "Incident: 6 security threat events within 9 min (6 of 9 logs in the burst).\nScope: 5 devices affected; most frequent message: SW_DAI-4-DHCP_SNOOPING_DENY.\nAction: Isolate the affected hosts and escalate to the security team.",
-        "prediction": "**Incident Summary**\n\nOn February 2nd at 20:43:11, an incident occurred involving a network device that was quarantined due to suspicious activity. The incident involved a potential threat from a malicious rogue AP on channel 1, identified by the IP address 192.168.249.124. This event was logged in the system logs for review and action taken based on the severity level and other relevant details provided."
+        "reference": "Incident: 13 configuration change events within 5 min (13 of 15 logs in the burst).\nScope: 13 devices affected; most frequent message: SYS-5-CONFIG_I.\nAction: Verify the change against an approved change request and the admin who made it.",
+        "prediction": "**Incident:** A significant number of network device configurations were configured from different sources, including console sessions, email notifications, and other administrative activities. The incidents involved adding new network interfaces, modifying existing ones, and performing various TACACS+ accounting commands. This resulted in a high volume of configuration changes across multiple devices. The scope includes 14 devices, indicating that these actions affected a wide range of network infrastructure components. The recommended next step is to review all configuration entries for any discrepancies or unauthorized modifications."
       },
       {
-        "reference": "Incident: 8 VPN events within 11 min (8 of 10 logs in the burst).\nScope: 6 devices affected; most frequent message: CRYPTO-4-RECVD_PKT_INV_SPI.\nAction: Check tunnel peers.",
-        "prediction": "**Incident:** A crypto tunnel was successfully established between two devices on Oct 14 at 14:51:20 UTC. The crypto tunnel is active, and there were multiple packets received from the destination address 192.0.2.189 with an invalid SPI (spiroth). The device encountered issues with receiving packets from 203.0.113.168 and 203.0.113.188, which required decryption and retransmission attempts. The issue was resolved by decrypt"
+        "reference": "Incident: 5 interface up/down events within 6 min (5 of 8 logs in the burst).\nScope: 5 devices affected; most frequent message: LINK-5-CHANGED.\nAction: Check the affected interfaces for flapping.",
+        "prediction": "**Incident:** A login attempt was successful on device R0/0 via SSL/TLS authentication on interface Portchannel5. The event occurred at 12:34:31 UTC, with 1 device (R0/0) and 1 interface (Portchannel5). This is the first login attempt for the device, which has been authenticated using an ECDHE-RSA-AES128-GCM-SHA256 cipher. The next action is to monitor the device's status and configure it if necessary."
       }
     ]
   }
