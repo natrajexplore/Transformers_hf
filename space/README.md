@@ -6,7 +6,7 @@ colorTo: gray
 sdk: gradio
 app_file: app.py
 pinned: false
-license: apache-2.0
+license: mit
 ---
 
 # LogSense — syslog triage demo

@@ -1,5 +1,5 @@
 ---
-license: apache-2.0
+license: mit
 base_model: distilbert-base-uncased
 library_name: transformers
 pipeline_tag: text-classification

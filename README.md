@@ -304,4 +304,4 @@ All sample data is synthetic. It uses only RFC 5737 documentation IPs (`192.0.2.
 `corp-sw-03`. Real lab logs must be anonymized the same way before they go into `data/raw/`.
 
 ## License
-Apache-2.0 (see [LICENSE](LICENSE))
+MIT (see [LICENSE](LICENSE))
