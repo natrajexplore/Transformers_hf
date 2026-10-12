@@ -10,7 +10,7 @@ Paste a log line and LogSense tells you:
 | What kind of event is this? | Fine-tuned DistilBERT classifier (+ TF-IDF baseline) | `%LINK-3-UPDOWN ... down` → `link_event` (0.97) |
 | Who and what is involved? | DistilBERT token classifier (NER, BIO tags) | `GigabitEthernet1/0/7` → INTERFACE |
 | Have we seen this before? | MiniLM sentence embeddings + FAISS index | top-5 most similar past events |
-| What happened in this burst? | Qwen2.5-0.5B-Instruct, prompted (LoRA run pending) | 3-line incident note |
+| What happened in this burst? | Qwen2.5-0.5B-Instruct + LoRA adapter | 3-line incident note |
 
 All of it runs on a CPU laptop, through a Gradio web demo, the command line, or an MCP tool server
 that Claude Code and other agents can call.
@@ -107,7 +107,7 @@ random seed is fixed (`seed: 42`) so runs are reproducible.
 | 4 | NER: BIO tags aligned via `word_ids()` and offsets, `-100` masking, seqeval metrics | ✅ | `train_ner.py` |
 | 5 | Similar-event search: MiniLM embeddings, FAISS `IndexFlatIP`, compared against TF-IDF | ✅ | `search.py` |
 | 6 | Gradio demo, model cards, Hugging Face Space folder | ✅ code (Hub upload awaiting approval) | `app.py`, `docs/model_cards/`, `space/` |
-| 7 | Burst summarizer: prompting vs LoRA fine-tuning (stretch goal) | ⚠️ prompting done, LoRA run pending | `summarize.py` |
+| 7 | Burst summarizer: prompting vs LoRA fine-tuning (stretch goal) | ✅ | `summarize.py` |
 | 8 | MCP tool server and a real-log evaluation script | ✅ code (needs anonymized lab logs) | `serve.py`, `evaluate_file.py` |
 
 **Engineering along the way**
@@ -173,10 +173,23 @@ The held-out templates contain no `RULE` entities, so `RULE` isn't scored on thi
 How often the top-1 neighbor has the same category: **MiniLM 0.637** vs TF-IDF 0.473
 (data v2: 0.521 vs 0.490). The new formats gave embeddings more same-meaning neighbors to find.
 
-### Burst summarizer (20 held-out bursts, prompting only)
-Qwen2.5-0.5B-Instruct mentioned the correct category 0.70 of the time, but got the exact event count
-0.00 and the exact 3-line format 0.00 (ROUGE-L 0.107; data v3 bursts). It writes long free-form markdown instead of
-the requested note, which is the gap the pending LoRA run is meant to close.
+### Burst summarizer (Qwen2.5-0.5B-Instruct, 20 held-out bursts)
+
+| | Prompt only | LoRA (120 bursts, 1 epoch, ~76 min CPU) |
+|---|---|---|
+| Exact 3-line format | 0.00 | **0.35** |
+| Exact event count | 0.00 | **0.15** |
+| Correct category mentioned | **0.70** | 0.50 |
+| ROUGE-L vs reference | 0.107 | **0.347** |
+| Seconds per burst | 14.6 | 10.5 |
+
+LoRA trained 4 MB of adapter weights (rank 8, attention projections only). It taught the model the
+*shape* of the note: `Incident: / Scope: / Action:`, short, no markdown. But it did not teach it to
+*count or read* the burst. It often writes a plausible-looking number ("10 events in 10 min") and
+sometimes the wrong category, e.g. a burst of interface flaps summarized as "unexpected login
+attempts". Category accuracy dropped from 0.70 to 0.50: it learned the format at the expense of
+faithfulness. A 0.5B model with 120 examples is too small for this. In practice, compute counts and
+categories with code (or the classifier) and let the LLM only phrase the note.
 
 ### Takeaways
 - **A cheap baseline can win.** TF-IDF character n-grams beat the fine-tuned transformer on unseen
@@ -187,6 +200,8 @@ the requested note, which is the gap the pending LoRA run is meant to close.
   `threat` lines.
 - **NER transfers better than classification.** Entities such as IPs and interfaces look alike in
   every format.
+- **LoRA teaches format, not facts.** A small adapter fixed the output shape quickly, but a 0.5B model
+  still invents counts. Structure is cheap to learn; faithfulness is not.
 - **Real-world performance will differ** from both splits. `evaluate_file.py` exists to measure that
   on real, anonymized logs.
 
@@ -283,11 +298,10 @@ Each concept is explained in the docstrings and comments of the module that uses
   missed), and MAC precision is 0.44 (other hex-like tokens get tagged as MACs).
 - **Fixed taxonomy.** Events outside the seven categories, such as posture, RADIUS server
   dead/alive and ISE alarms, would need a new category.
-- **Summarizer.** Prompt-only output doesn't follow the requested format yet, and the LoRA results
-  are still pending.
+- **Summarizer.** The LoRA model follows the note format 35% of the time but makes up counts and
+  sometimes the category; don't trust its numbers.
 
 ## What's left
-- [ ] Run the LoRA training (`python -m logsense.summarize`, about 1.5 h on CPU) and add its results here
 - [ ] Evaluate on anonymized real lab logs with `evaluate_file`
 - [ ] Publish the models and the Space to the Hugging Face Hub (steps in `space/README.md`, only after approval)
 

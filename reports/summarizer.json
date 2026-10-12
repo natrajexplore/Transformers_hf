@@ -25,5 +25,28 @@
         "prediction": "**Incident:** A login attempt was successful on device R0/0 via SSL/TLS authentication on interface Portchannel5. The event occurred at 12:34:31 UTC, with 1 device (R0/0) and 1 interface (Portchannel5). This is the first login attempt for the device, which has been authenticated using an ECDHE-RSA-AES128-GCM-SHA256 cipher. The next action is to monitor the device's status and configure it if necessary."
       }
     ]
+  },
+  "lora_train_seconds": 4566.2,
+  "lora": {
+    "n": 20,
+    "seconds_per_burst": 10.5,
+    "format_ok": 0.35,
+    "count_ok": 0.15,
+    "category_ok": 0.5,
+    "rougeL": 0.347,
+    "examples": [
+      {
+        "reference": "Incident: 10 authentication failure events within 9 min (10 of 12 logs in the burst).\nScope: 8 devices affected; most frequent message: DOT1X-5-FAIL.\nAction: Check the source and user for brute force; lock or reset the account if unexpected.",
+        "prediction": "Incident: 10 RADIUS login failure within 1 min; Scope: 1 device affected; Action: Check RADIUS logs."
+      },
+      {
+        "reference": "Incident: 13 configuration change events within 5 min (13 of 15 logs in the burst).\nScope: 13 devices affected; most frequent message: SYS-5-CONFIG_I.\nAction: Verify the change against an approved change request and the admin who made it.",
+        "prediction": "Incident: 10 unexpected configuration changes in 10 logs within 10 minutes.\nScope: 10 devices affected; most frequent message: SYS-5-CONFIG_I.\nAction: Check for any unusual configuration changes."
+      },
+      {
+        "reference": "Incident: 5 interface up/down events within 6 min (5 of 8 logs in the burst).\nScope: 5 devices affected; most frequent message: LINK-5-CHANGED.\nAction: Check the affected interfaces for flapping.",
+        "prediction": "Incident: 10 unexpected login attempts in 10 min; Scope: 1 device affected; Action: Check firewall logs."
+      }
+    ]
   }
 }
