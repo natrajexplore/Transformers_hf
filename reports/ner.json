@@ -1,104 +1,105 @@
 {
   "base_model": "distilbert-base-uncased",
   "max_length": 256,
-  "train_rows": 1633,
+  "train_rows": 1781,
   "epochs_run": 3.0,
+  "best_checkpoint": "models\\ner_checkpoints\\checkpoint-112",
   "best_metric": "validation_unseen_f1",
-  "best_metric_value": 0.9482220835932627,
-  "train_seconds": 2238.7,
-  "train_loss": 0.1548,
+  "best_metric_value": 0.9294670846394983,
+  "train_seconds": 1765.0,
+  "train_loss": 0.1464,
   "test": {
     "INTERFACE": {
       "precision": 1.0,
       "recall": 1.0,
       "f1-score": 1.0,
-      "support": 118
+      "support": 120
     },
     "IP": {
       "precision": 1.0,
       "recall": 1.0,
       "f1-score": 1.0,
-      "support": 194
+      "support": 198
     },
     "MAC": {
-      "precision": 1.0,
+      "precision": 0.9884,
       "recall": 1.0,
-      "f1-score": 1.0,
-      "support": 80
+      "f1-score": 0.9942,
+      "support": 85
     },
     "RULE": {
       "precision": 1.0,
       "recall": 1.0,
       "f1-score": 1.0,
-      "support": 27
+      "support": 25
     },
     "USER": {
       "precision": 1.0,
       "recall": 1.0,
       "f1-score": 1.0,
-      "support": 101
+      "support": 97
     },
     "VLAN": {
       "precision": 1.0,
-      "recall": 1.0,
-      "f1-score": 1.0,
-      "support": 14
+      "recall": 0.8947,
+      "f1-score": 0.9444,
+      "support": 19
     },
     "micro avg": {
-      "precision": 1.0,
-      "recall": 1.0,
-      "f1-score": 1.0,
-      "support": 534
+      "precision": 0.9982,
+      "recall": 0.9963,
+      "f1-score": 0.9972,
+      "support": 544
     },
     "macro avg": {
-      "precision": 1.0,
-      "recall": 1.0,
-      "f1-score": 1.0,
-      "support": 534
+      "precision": 0.9981,
+      "recall": 0.9825,
+      "f1-score": 0.9898,
+      "support": 544
     }
   },
   "test_unseen": {
     "INTERFACE": {
-      "precision": 0.9966,
+      "precision": 0.9575,
       "recall": 1.0,
-      "f1-score": 0.9983,
-      "support": 295
+      "f1-score": 0.9783,
+      "support": 248
     },
     "IP": {
-      "precision": 0.928,
-      "recall": 0.928,
-      "f1-score": 0.928,
-      "support": 486
-    },
-    "MAC": {
-      "precision": 0.2755,
-      "recall": 1.0,
-      "f1-score": 0.432,
-      "support": 73
-    },
-    "USER": {
       "precision": 1.0,
       "recall": 1.0,
       "f1-score": 1.0,
+      "support": 336
+    },
+    "MAC": {
+      "precision": 0.4358,
+      "recall": 1.0,
+      "f1-score": 0.607,
+      "support": 78
+    },
+    "USER": {
+      "precision": 0.989,
+      "recall": 1.0,
+      "f1-score": 0.9945,
       "support": 90
     },
     "VLAN": {
-      "precision": 0.7188,
-      "recall": 0.4792,
-      "f1-score": 0.575,
+      "precision": 0.6,
+      "recall": 0.0625,
+      "f1-score": 0.1132,
       "support": 48
     },
     "micro avg": {
-      "precision": 0.7973,
-      "recall": 0.9395,
-      "f1-score": 0.8626,
-      "support": 992
+      "precision": 0.8678,
+      "recall": 0.9437,
+      "f1-score": 0.9042,
+      "support": 800
     },
     "macro avg": {
-      "precision": 0.7838,
-      "recall": 0.8814,
-      "f1-score": 0.7866,
-      "support": 992
+      "precision": 0.7965,
+      "recall": 0.8125,
+      "f1-score": 0.7386,
+      "support": 800
     }
   }
 }

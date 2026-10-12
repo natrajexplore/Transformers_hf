@@ -156,16 +156,22 @@ Each per-class unseen score comes from a single held-out template, so it swings 
 
 Confusion matrices: `reports/classifier_confusion_test_unseen.png` and `..._test.png`.
 
-### Entity extraction (`test_unseen`, data v2 model; retrain on v3 pending)
+### Entity extraction (`test_unseen`)
 
 | Micro-F1 | USER | INTERFACE | IP | VLAN | MAC |
 |---|---|---|---|---|---|
-| **0.863** | 1.00 | 1.00 | 0.93 | 0.58 | 0.43 |
+| **0.904** | 0.99 | 0.98 | 1.00 | 0.11 | 0.61 |
+
+Before data v3 the score was 0.863 (VLAN 0.58, MAC 0.43). IP and MAC improved; VLAN got worse.
+All unseen VLANs come from one template (`%CDP-4-NATIVE_VLAN_MISMATCH`, where the VLAN is a
+bare number in parentheses), and all unseen MACs from one AP-event template. Each score is a
+single-format result, so it swings a lot between retrains.
 
 The held-out templates contain no `RULE` entities, so `RULE` isn't scored on this split.
 
-### Similar-event search (data v2 index; rebuild pending)
-How often the top-1 neighbor has the same category: **MiniLM 0.521** vs TF-IDF 0.490.
+### Similar-event search
+How often the top-1 neighbor has the same category: **MiniLM 0.637** vs TF-IDF 0.473
+(data v2: 0.521 vs 0.490). The new formats gave embeddings more same-meaning neighbors to find.
 
 ### Burst summarizer (20 held-out bursts, prompting only)
 Qwen2.5-0.5B-Instruct mentioned the correct category 0.65 of the time, but got the exact event count
@@ -273,15 +279,14 @@ Each concept is explained in the docstrings and comments of the module that uses
 - **Synthetic data only.** Real devices produce formats, typos and volumes the generator does not.
 - **Classifier gaps.** On unseen templates DistilBERT still scores 0 on `threat` (IPS signature read
   as `vpn`) and `noise` (CDP mismatch read as `threat`), and 0.48 on `vpn`.
-- **NER.** Bare numbers get confused (VLAN IDs versus other numeric fields), and MAC F1 is low
-  on unseen formats.
+- **NER.** Bare numbers get confused: unseen VLAN F1 is 0.11 (VLAN IDs in parentheses are
+  missed), and MAC precision is 0.44 (other hex-like tokens get tagged as MACs).
 - **Fixed taxonomy.** Events outside the seven categories, such as posture, RADIUS server
   dead/alive and ISE alarms, would need a new category.
 - **Summarizer.** Prompt-only output doesn't follow the requested format yet, and the LoRA results
   are still pending.
 
 ## What's left
-- [ ] Retrain NER (`python -m logsense.train_ner`, ~40 min) and rebuild the search index on data v3
 - [ ] Run the LoRA training (`python -m logsense.summarize`, about 1.5 h on CPU) and add its results here
 - [ ] Evaluate on anonymized real lab logs with `evaluate_file`
 - [ ] Publish the models and the Space to the Hugging Face Hub (steps in `space/README.md`, only after approval)

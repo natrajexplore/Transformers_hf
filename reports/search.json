@@ -1,9 +1,9 @@
 {
   "embedding_model": "sentence-transformers/all-MiniLM-L6-v2",
-  "index_size": 1633,
+  "index_size": 1781,
   "test": {
     "embeddings": {
-      "n": 205,
+      "n": 223,
       "top1_agreement": 1.0,
       "per_class": {
         "auth_failure": 1.0,
@@ -16,10 +16,10 @@
       }
     },
     "tfidf": {
-      "n": 205,
-      "top1_agreement": 1.0,
+      "n": 223,
+      "top1_agreement": 0.991,
       "per_class": {
-        "auth_failure": 1.0,
+        "auth_failure": 0.9444,
         "config_change": 1.0,
         "link_event": 1.0,
         "threat": 1.0,
@@ -31,29 +31,29 @@
   },
   "test_unseen": {
     "embeddings": {
-      "n": 453,
-      "top1_agreement": 0.521,
+      "n": 383,
+      "top1_agreement": 0.6371,
       "per_class": {
-        "auth_failure": 0.9714,
+        "auth_failure": 0.9429,
         "config_change": 1.0,
         "link_event": 1.0,
-        "threat": 0.023,
-        "vpn": 0.036,
+        "threat": 0.0678,
+        "vpn": 0.0938,
         "wireless": 1.0,
         "noise": 0.0
       }
     },
     "tfidf": {
-      "n": 453,
-      "top1_agreement": 0.4901,
+      "n": 383,
+      "top1_agreement": 0.4726,
       "per_class": {
-        "auth_failure": 0.0857,
+        "auth_failure": 0.0571,
         "config_change": 1.0,
-        "link_event": 0.1912,
-        "threat": 0.092,
-        "vpn": 0.7297,
-        "wireless": 0.7808,
-        "noise": 0.2083
+        "link_event": 0.2941,
+        "threat": 0.0678,
+        "vpn": 0.6719,
+        "wireless": 0.6923,
+        "noise": 0.125
       }
     }
   }
