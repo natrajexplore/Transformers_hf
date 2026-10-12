@@ -1,15 +1,15 @@
 {
   "base_model": "distilbert-base-uncased",
   "max_length": 128,
-  "train_rows": 1633,
+  "train_rows": 1781,
   "epochs_run": 3.0,
-  "best_checkpoint": "models\\classifier_checkpoints\\checkpoint-206",
+  "best_checkpoint": "models\\classifier_checkpoints\\checkpoint-224",
   "best_metric": "validation_unseen_macro_f1",
-  "best_metric_value": 0.37252623371198407,
-  "train_seconds": 1327.1,
-  "train_loss": 0.4761,
+  "best_metric_value": 0.7261816774011896,
+  "train_seconds": 1953.4,
+  "train_loss": 0.4592,
   "test": {
-    "n": 205,
+    "n": 223,
     "accuracy": 1.0,
     "macro_f1": 1.0,
     "per_class_f1": {
@@ -63,7 +63,7 @@
           0,
           0,
           0,
-          25,
+          33,
           0,
           0,
           0
@@ -73,7 +73,7 @@
           0,
           0,
           0,
-          21,
+          30,
           0,
           0
         ],
@@ -93,22 +93,22 @@
           0,
           0,
           0,
-          37
+          38
         ]
       ]
     }
   },
   "test_unseen": {
-    "n": 453,
-    "accuracy": 0.5099337748344371,
-    "macro_f1": 0.47511833475905335,
+    "n": 383,
+    "accuracy": 0.7101827676240209,
+    "macro_f1": 0.6278867102396514,
     "per_class_f1": {
-      "auth_failure": 0.41916167664670656,
+      "auth_failure": 0.9333333333333333,
       "config_change": 1.0,
-      "link_event": 0.9066666666666666,
+      "link_event": 1.0,
       "threat": 0.0,
-      "vpn": 0.0,
-      "wireless": 1.0,
+      "vpn": 0.48148148148148145,
+      "wireless": 0.9803921568627451,
       "noise": 0.0
     },
     "confusion_matrix": {
@@ -154,33 +154,33 @@
           0,
           0,
           0,
-          87,
+          59,
           0,
           0
         ],
         [
-          87,
+          2,
           0,
           0,
+          22,
+          39,
           0,
-          0,
-          0,
-          24
+          1
         ],
         [
+          3,
           0,
           0,
           0,
           0,
-          0,
-          73,
+          75,
           0
         ],
         [
-          10,
           0,
-          14,
           0,
+          0,
+          24,
           0,
           0,
           0

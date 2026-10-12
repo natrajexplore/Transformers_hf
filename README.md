@@ -41,15 +41,15 @@ that Claude Code and other agents can call.
 | `auth_failure` | IOS `%SEC_LOGIN-4-LOGIN_FAILED`, ISE `5400`/`5405`, 802.1X/MAB failures, WLC wrong PSK, PAN-OS auth fail |
 | `config_change` | IOS `%SYS-5-CONFIG_I`, parser command accounting, ISE TACACS+ `3300` and admin config, WLC/PAN-OS config logs |
 | `link_event` | `%LINK-3-UPDOWN`, `%LINEPROTO-5-UPDOWN`, admin-down, PAN-OS link changes, WLC uplinks |
-| `threat` | PAN-OS THREAT, IOS IPS signatures and ARP inspection, WLC rogue AP, ISE threat-centric NAC quarantine |
-| `vpn` | IOS crypto/IKE (incl. invalid SPI), PAN-OS IKE and GlobalProtect (even GlobalProtect auth failures) |
+| `threat` | PAN-OS THREAT (incl. scans/floods), IOS IPS signatures, ARP inspection, port-security violations, rogue DHCP, WLC rogue AP, ISE threat-centric NAC quarantine |
+| `vpn` | IOS crypto/IKE (incl. invalid SPI), IKEv2 SA, ISAKMP failures, DMVPN NHS, PAN-OS IKE and GlobalProtect (even GlobalProtect auth failures) |
 | `wireless` | C9800 client association/deauth, `%CLIENT_ORCH_LOG`, `%APMGR_TRACE_MESSAGE`, AP join/disjoin |
-| `noise` | NTP sync, CDP, successful logins, `5200` success, RADIUS accounting, routine CoA, TRAFFIC deny, cron |
+| `noise` | NTP sync, CDP, successful logins (incl. SSH success), WLC config-datastore sync, `5200` success, RADIUS accounting, routine CoA, TRAFFIC deny, cron |
 
 **Six entity types**: `IP`, `USER`, `INTERFACE`, `MAC`, `RULE`, `VLAN`, each returned with its
 character offsets and a confidence score.
 
-**Realistic synthetic data**: 53 message templates across 4 vendors. Formats follow Cisco and
+**Realistic synthetic data**: 62 message templates across 4 vendors. Formats follow Cisco and
 PAN-OS documentation and Cisco Live 2026 sessions: verbatim C9800 syslog shapes from BRKEWN-3628,
 plus ISE / IBNS 2.0 session-manager and RADIUS concepts from BRKSEC-2347 and BRKSEC-2660. Only
 events that fit the seven categories went in; posture, RADIUS dead/alive, ISE alarms and debug-file
@@ -57,10 +57,10 @@ formats were left out on purpose.
 
 | Vendor | Templates |
 |---|---|
-| Cisco IOS / IOS-XE | 18 |
+| Cisco IOS / IOS-XE | 24 |
 | Cisco ISE | 12 |
-| Cisco C9800 WLC | 13 |
-| Palo Alto PAN-OS | 10 (CSV TRAFFIC, THREAT, SYSTEM, CONFIG, GLOBALPROTECT) |
+| Cisco C9800 WLC | 14 |
+| Palo Alto PAN-OS | 12 (CSV TRAFFIC, THREAT, SYSTEM, CONFIG, GLOBALPROTECT) |
 
 **Deliberately hard labeling rules**, so the models must read meaning rather than vendor:
 a successful login is `noise` rather than `auth_failure`; a TRAFFIC `deny` is `noise`, and only THREAT
@@ -115,6 +115,9 @@ random seed is fixed (`seed: 42`) so runs are reproducible.
   second as `validation_unseen`. That makes the evaluation measure generalization instead of
   memorization, and the classifier checkpoint is chosen on `validation_unseen`.
 - **Data v2.** The dataset was rebuilt with Cisco Live 2026 formats and every model was retrained.
+- **Data v3.** Error analysis showed `vpn` trained on only 2 formats once two were held out, so the
+  model keyed on surface tokens. 9 templates were added to `vpn`, `threat` and `noise`, and the
+  classifier went from 0.475 to 0.628 unseen macro-F1. A test now guards the per-label format count.
 - **Two code-review passes**, which led to 18 fixes. Among them: macro-F1 over all labels, a check
   on label order, validation of the held-out lists, strict word-boundary scoring for summaries, and
   report saving that survives a crashed run.
@@ -135,18 +138,25 @@ templates as training, so every model scores about 1.0 there, which only measure
 
 | | Zero-shot (bart-large-mnli) | TF-IDF + LogReg | DistilBERT fine-tuned |
 |---|---|---|---|
-| **Macro-F1** | 0.369 | **0.632** | 0.475 |
-| auth_failure | 1.00 | 1.00 | 0.42 |
-| config_change | 0.54 | 1.00 | 1.00 |
-| link_event | 0.45 | 0.52 | 0.91 |
-| threat | 0.59 | 0.00 | 0.00 |
-| vpn | 0.00 | 0.87 | 0.00 |
-| wireless | 0.00 | 1.00 | 1.00 |
-| noise | 0.00 | 0.03 | 0.00 |
+| **Macro-F1** | 0.320 | **0.677** | 0.628 |
+| auth_failure | 1.00 | 1.00 | 0.93 |
+| config_change | 0.55 | 1.00 | 1.00 |
+| link_event | 0.49 | 0.97 | 1.00 |
+| threat | 0.20 | 0.00 | 0.00 |
+| vpn | 0.00 | 0.68 | 0.48 |
+| wireless | 0.00 | 1.00 | 0.98 |
+| noise | 0.00 | 0.08 | 0.00 |
+
+Data v3 (62 templates), 383 unseen-template lines; zero-shot scored on a 100-line sample.
+Before data v3, DistilBERT scored 0.475 and TF-IDF 0.632.
+
+What still fails: the unseen IOS `%IPS-4-SIGNATURE` lines are all predicted `vpn` (the "IPS"
+token looks like IPsec), and the unseen `%CDP-4-NATIVE_VLAN_MISMATCH` lines are predicted `threat`.
+Each per-class unseen score comes from a single held-out template, so it swings a lot.
 
 Confusion matrices: `reports/classifier_confusion_test_unseen.png` and `..._test.png`.
 
-### Entity extraction (`test_unseen`)
+### Entity extraction (`test_unseen`, data v2 model; retrain on v3 pending)
 
 | Micro-F1 | USER | INTERFACE | IP | VLAN | MAC |
 |---|---|---|---|---|---|
@@ -154,7 +164,7 @@ Confusion matrices: `reports/classifier_confusion_test_unseen.png` and `..._test
 
 The held-out templates contain no `RULE` entities, so `RULE` isn't scored on this split.
 
-### Similar-event search
+### Similar-event search (data v2 index; rebuild pending)
 How often the top-1 neighbor has the same category: **MiniLM 0.521** vs TF-IDF 0.490.
 
 ### Burst summarizer (20 held-out bursts, prompting only)
@@ -165,9 +175,10 @@ the requested note, which is the gap the pending LoRA run is meant to close.
 ### Takeaways
 - **A cheap baseline can win.** TF-IDF character n-grams beat the fine-tuned transformer on unseen
   formats, because they catch shared tokens like `IKE`, `AUTH` and `%SYS`.
-- **Fine-tuning on narrow data teaches shortcuts.** DistilBERT learned vendor and format cues and
-  missed `threat`, `vpn` and `noise` when the wording was new.
-- **Each method fails differently.** Zero-shot is the only model that finds some unseen `threat` lines.
+- **Fine-tuning on narrow data teaches shortcuts, and more formats fix part of it.** With only 2
+  `vpn` formats DistilBERT learned surface cues; adding formats lifted it from 0.475 to 0.628.
+- **Each method fails differently.** Zero-shot is still the only model that finds some unseen
+  `threat` lines.
 - **NER transfers better than classification.** Entities such as IPs and interfaces look alike in
   every format.
 - **Real-world performance will differ** from both splits. `evaluate_file.py` exists to measure that
@@ -221,7 +232,7 @@ labels present in the file.
 configs/default.yaml   labels, entity types, model names, hyperparameters, paths
 src/logsense/
   config.py            load YAML config, label2id / id2label
-  generate.py          Phase 1: 53-template synthetic log generator + DatasetDict
+  generate.py          Phase 1: 62-template synthetic log generator + DatasetDict
   baseline.py          Phase 2: zero-shot NLI and TF-IDF + LogReg
   metrics.py           accuracy, macro-F1, per-class F1, confusion matrix
   train_classifier.py  Phase 3: DistilBERT sequence classification
@@ -260,8 +271,8 @@ Each concept is explained in the docstrings and comments of the module that uses
 
 ## Known limitations
 - **Synthetic data only.** Real devices produce formats, typos and volumes the generator does not.
-- **Classifier gaps.** `threat`, `vpn` and `noise` score 0 for DistilBERT on unseen templates;
-  more template variety per category would help most.
+- **Classifier gaps.** On unseen templates DistilBERT still scores 0 on `threat` (IPS signature read
+  as `vpn`) and `noise` (CDP mismatch read as `threat`), and 0.48 on `vpn`.
 - **NER.** Bare numbers get confused (VLAN IDs versus other numeric fields), and MAC F1 is low
   on unseen formats.
 - **Fixed taxonomy.** Events outside the seven categories, such as posture, RADIUS server
@@ -270,6 +281,7 @@ Each concept is explained in the docstrings and comments of the module that uses
   are still pending.
 
 ## What's left
+- [ ] Retrain NER (`python -m logsense.train_ner`, ~40 min) and rebuild the search index on data v3
 - [ ] Run the LoRA training (`python -m logsense.summarize`, about 1.5 h on CPU) and add its results here
 - [ ] Evaluate on anonymized real lab logs with `evaluate_file`
 - [ ] Publish the models and the Space to the Hugging Face Hub (steps in `space/README.md`, only after approval)

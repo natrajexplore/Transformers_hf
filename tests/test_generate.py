@@ -122,6 +122,18 @@ def test_no_vendor_shortcut_for_unseen_templates(cfg, rows):
             assert (names[ex["label"]], ex["vendor"]) in train_pairs, ex["template"]
 
 
+def test_every_label_keeps_enough_training_formats(cfg, rows):
+    """After two templates per label are held out, each label still trains on >= 3 formats.
+    With only 2 (vpn in data v2) the classifier learned surface tokens, not the category."""
+    dsd = build_dataset_dict(rows, cfg)
+    names = dsd["train"].features["label"].names
+    formats = Counter(
+        lbl for lbl, _ in {(names[ex["label"]], ex["template"]) for ex in dsd["train"]}
+    )
+    for label in names:
+        assert formats[label] >= 3, label
+
+
 def test_unknown_heldout_template_rejected(cfg, rows):
     bad = {**cfg, "data": {**cfg["data"], "heldout_templates": ["no_such_template"]}}
     with pytest.raises(ValueError, match="no_such_template"):

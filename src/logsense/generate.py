@@ -997,6 +997,134 @@ def wlc_webui_login(rng, dt):  # noise: successful admin login to the 9800 web U
     return tpl, {"ip": _e(_private_ip(rng), "IP"), "user": _e(_user(rng), "USER")}
 
 
+# --- data v3: more formats for the thinnest labels. With two templates per label held out,
+#     vpn trained on only 2 formats and threat on 3, so the model keyed on surface tokens
+#     (e.g. "%IPS" read as IPsec -> vpn). Formats from public Cisco / PAN-OS docs. ---
+
+
+def ios_ikev2_sa(rng, dt):  # vpn: IKEv2 security association up / down (FlexVPN, site-to-site)
+    tpl = (
+        _ios_hdr(rng, dt, "rtr") + "%IKEV2-5-SA_{st}: SA {st}, local {local}:500 remote {peer}:500"
+    )
+    return tpl, {
+        "st": rng.choice(["UP", "DOWN"]),
+        "local": _e(_public_ip(rng), "IP"),
+        "peer": _e(_public_ip(rng), "IP"),
+    }
+
+
+def ios_isakmp_fail(rng, dt):  # vpn: IKEv1 phase-1 failure (mismatched proposal or PSK)
+    mode = rng.choice(["Main", "Aggressive", "Quick"])
+    tpl = _ios_hdr(rng, dt, "rtr") + (
+        "%CRYPTO-6-IKMP_MODE_FAILURE: Processing of {mode} mode failed with peer at {peer}"
+    )
+    return tpl, {"mode": mode, "peer": _e(_public_ip(rng), "IP")}
+
+
+def ios_dmvpn_nhs(rng, dt):  # vpn: DMVPN spoke loses / regains its hub (NHRP next-hop server)
+    n = str(rng.randint(0, 9))
+    tpl = _ios_hdr(rng, dt, "rtr") + (
+        "%DMVPN-5-NHRP_NHS_{st}: Tunnel{n}: Next Hop Server : (Tunnel: {tip} NBMA: {nbma}) "
+        "for (Tunnel: {tip2} NBMA: {nbma2}) is {st}"
+    )
+    tip = f"172.16.{n}.1"
+    return tpl, {
+        "st": rng.choice(["UP", "DOWN"]),
+        "n": n,
+        "tip": _e(tip, "IP"),
+        "nbma": _e(_public_ip(rng), "IP"),
+        "tip2": _e(f"172.16.{n}.{rng.randint(2, 254)}", "IP"),
+        "nbma2": _e(_public_ip(rng), "IP"),
+    }
+
+
+def pan_gp_gateway(rng, dt):  # vpn: GlobalProtect gateway events in the PAN-OS SYSTEM log
+    event, msg = rng.choice(
+        [
+            (
+                "globalprotectgateway-regist-succ",
+                "GlobalProtect gateway client configuration registered.",
+            ),
+            ("globalprotectgateway-logout-succ", "GlobalProtect gateway user logout succeeded."),
+            (
+                "globalprotectgateway-config-release",
+                "GlobalProtect gateway client configuration released.",
+            ),
+        ]
+    )
+    tpl = _pan_hdr(rng, dt, "SYSTEM", "globalprotect") + (
+        ',{event},gw-corp,0,0,general,informational,"{msg} Login from: {pub}, User name: {user}, '
+        'Private IP: {priv}.",{seq},0x0,0,0,0,0,,'
+    )
+    return tpl, {
+        "event": event,
+        "msg": msg,
+        "pub": _e(_public_ip(rng), "IP"),
+        "user": _e(_user(rng), "USER"),
+        "priv": _e(_private_ip(rng), "IP"),
+        "seq": str(rng.randint(10**6, 10**7)),
+    }
+
+
+def ios_port_security(rng, dt):  # threat: unknown MAC on a locked-down access port
+    tpl = _ios_hdr(rng, dt) + (
+        "%PORT_SECURITY-2-PSECURE_VIOLATION: Security violation occurred, caused by MAC "
+        "address {mac} on port {iface}."
+    )
+    return tpl, {"mac": _e(_mac_cisco(rng), "MAC"), "iface": _e(_ios_iface(rng), "INTERFACE")}
+
+
+def ios_dhcp_snooping(rng, dt):  # threat: rogue DHCP server answering on an untrusted port
+    tpl = _ios_hdr(rng, dt) + (
+        "%DHCP_SNOOPING-5-DHCP_SNOOPING_UNTRUSTED_PORT: DHCP_SNOOPING drop message on untrusted "
+        "port {iface}, message type: {mt}, MAC sa: {mac}"
+    )
+    return tpl, {
+        "iface": _e(_ios_iface(rng), "INTERFACE"),
+        "mt": rng.choice(["DHCPOFFER", "DHCPACK"]),
+        "mac": _e(_mac_cisco(rng), "MAC"),
+    }
+
+
+def pan_threat_scan(rng, dt):  # threat: PAN-OS zone protection reconnaissance / flood detection
+    name, tid = rng.choice(
+        [
+            ("TCP Port Scan", 8001),
+            ("Host Sweep", 8002),
+            ("UDP Port Scan", 8003),
+            ("TCP Flood", 8501),
+        ]
+    )
+    tpl = _pan_hdr(rng, dt, "THREAT", "scan" if tid < 8500 else "flood") + (
+        "{src},{dst},,,{rule},,,not-applicable,vsys1,untrust,trust,{inif},,Log-Fwd,0,1,0,0,0,0,"
+        '0x0,tcp,drop,"",{name}({tid}),any,high,client-to-server'
+    )
+    return tpl, {
+        "src": _e(_public_ip(rng), "IP"),
+        "dst": _e(_private_ip(rng), "IP"),
+        "rule": _e(rng.choice(RULES), "RULE"),
+        "inif": _e(_pan_iface(rng), "INTERFACE"),
+        "name": name,
+        "tid": str(tid),
+    }
+
+
+def ios_ssh_success(rng, dt):  # noise (hard: same mnemonic as ios_ssh_failed, ends "Succeeded")
+    tpl = _ios_hdr(rng, dt) + (
+        "%SSH-5-SSH2_USERAUTH: User '{user}' authentication for SSH2 Session from {src} "
+        "(tty = 0) using crypto cipher 'aes256-ctr', hmac 'hmac-sha2-256' Succeeded"
+    )
+    return tpl, {"user": _e(_user(rng), "USER"), "src": _e(_private_ip(rng), "IP")}
+
+
+def wlc_dmi_sync(rng, dt):  # noise: routine config datastore sync on the 9800 (not a change)
+    tpl = _wlc_hdr(rng, dt) + (
+        "%DMI-5-SYNC_COMPLETE: Chassis 1 R0/0: dmiauthd: The running configuration has been "
+        "synchronized to the NETCONF running data store."
+    )
+    return tpl, {}
+
+
 # (vendor, template) pairs per label. Vendors are filtered by config `data.vendors`.
 TEMPLATES: dict[str, list[tuple[str, Template]]] = {
     "auth_failure": [
@@ -1037,12 +1165,19 @@ TEMPLATES: dict[str, list[tuple[str, Template]]] = {
         ("cisco_ios", ios_dai_deny),
         ("cisco_wlc", wlc_rogue_ap),
         ("cisco_ise", ise_anc_quarantine),
+        ("cisco_ios", ios_port_security),
+        ("cisco_ios", ios_dhcp_snooping),
+        ("panos", pan_threat_scan),
     ],
     "vpn": [
         ("panos", pan_globalprotect),
         ("panos", pan_ike),
         ("cisco_ios", ios_crypto_session),
         ("cisco_ios", ios_crypto_inv_spi),
+        ("cisco_ios", ios_ikev2_sa),
+        ("cisco_ios", ios_isakmp_fail),
+        ("cisco_ios", ios_dmvpn_nhs),
+        ("panos", pan_gp_gateway),
     ],
     "wireless": [
         ("cisco_wlc", wlc_client_run),
@@ -1066,6 +1201,8 @@ TEMPLATES: dict[str, list[tuple[str, Template]]] = {
         ("panos", pan_traffic),
         ("cisco_ios", ios_logging_host),
         ("panos", pan_scheduled_job),
+        ("cisco_ios", ios_ssh_success),
+        ("cisco_wlc", wlc_dmi_sync),
     ],
 }
 
