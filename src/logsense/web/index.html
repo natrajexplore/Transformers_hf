@@ -1,0 +1,104 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>LogSense Console</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <header>
+    <div class="brand">LogSense <span>console</span></div>
+    <nav id="tabs">
+      <button data-tab="try" class="active">Try it</button>
+      <button data-tab="summarize">Summarize</button>
+      <button data-tab="performance">Performance</button>
+      <button data-tab="evaluation">Evaluation</button>
+      <button data-tab="models">Models</button>
+    </nav>
+  </header>
+
+  <main>
+    <!-- Try it -->
+    <section id="try" class="panel active">
+      <p class="hint">Paste syslog lines (one per line). Each line is classified, its entities are
+        extracted, and the most similar past events are retrieved.</p>
+      <textarea id="try-input" rows="7" placeholder="Paste Cisco IOS / ISE / C9800 / PAN-OS syslog lines here"></textarea>
+      <div class="controls">
+        <button id="try-run" class="primary">Analyze</button>
+        <button id="try-samples">Load samples</button>
+        <label>split <select id="try-split"><option>test_unseen</option><option>test</option></select></label>
+        <label>similar <input id="try-k" type="number" min="1" max="20" value="3"></label>
+        <span id="try-timing" class="chips"></span>
+      </div>
+      <div id="try-error" class="error"></div>
+      <div id="try-results"></div>
+    </section>
+
+    <!-- Summarize -->
+    <section id="summarize" class="panel">
+      <p class="hint">Summarize a burst of logs into a 3-line incident note with Qwen2.5-0.5B.
+        <b>LoRA</b> learned the note format; <b>prompt-only</b> is the untuned model. The first run
+        loads the LLM (~30&nbsp;s); each summary takes ~10&nbsp;s on CPU. Counts from the LLM are not
+        reliable &mdash; compare them with the classifier counts.</p>
+      <textarea id="sum-input" rows="9" placeholder="Paste 8-30 related log lines, or generate a sample burst"></textarea>
+      <div class="controls">
+        <button id="sum-sample">Generate sample burst</button>
+        <button id="sum-lora" class="primary">Summarize (LoRA)</button>
+        <button id="sum-prompt">Summarize (prompt-only)</button>
+        <button id="sum-both">Compare both</button>
+        <span id="sum-status" class="muted"></span>
+      </div>
+      <div id="sum-error" class="error"></div>
+      <div id="sum-reference"></div>
+      <div id="sum-results" class="grid2"></div>
+    </section>
+
+    <!-- Performance -->
+    <section id="performance" class="panel">
+      <p class="hint">Runs labeled lines from a dataset split through each model on this machine and
+        measures speed. The first batch is an untimed warm-up (it loads the weights).</p>
+      <div class="controls">
+        <label>split <select id="bench-split"><option>test_unseen</option><option>test</option></select></label>
+        <label>lines <input id="bench-n" type="number" min="1" max="500" value="100"></label>
+        <label>batch size <input id="bench-bs" type="number" min="1" max="128" value="16"></label>
+        <label><input type="checkbox" class="bench-model" value="classifier" checked> classifier</label>
+        <label><input type="checkbox" class="bench-model" value="ner" checked> NER</label>
+        <label><input type="checkbox" class="bench-model" value="search" checked> search</label>
+        <button id="bench-run" class="primary">Run benchmark</button>
+        <span id="bench-status" class="muted"></span>
+      </div>
+      <div id="bench-error" class="error"></div>
+      <div id="bench-results"></div>
+    </section>
+
+    <!-- Evaluation -->
+    <section id="evaluation" class="panel">
+      <div class="card">
+        <h3>Score your own labeled logs</h3>
+        <p class="hint">Upload a <code>.jsonl</code> file with one <code>{"text": ..., "label": ...}</code>
+          per line. Use anonymized logs only. Only categories present in the file are scored.</p>
+        <div class="controls">
+          <input id="eval-file" type="file" accept=".jsonl,.json,.txt">
+          <button id="eval-run" class="primary">Evaluate</button>
+          <span id="eval-status" class="muted"></span>
+        </div>
+        <div id="eval-error" class="error"></div>
+        <div id="eval-results"></div>
+      </div>
+      <h2>Offline results <small>(from reports/*.json)</small></h2>
+      <p class="hint"><code>test</code> = new lines from templates seen in training (measures
+        memorization). <code>test_unseen</code> = whole message templates held out (measures
+        generalization &mdash; the number that matters).</p>
+      <div id="metrics"></div>
+    </section>
+
+    <!-- Models -->
+    <section id="models" class="panel">
+      <div id="models-body"></div>
+    </section>
+  </main>
+
+  <script src="app.js"></script>
+</body>
+</html>

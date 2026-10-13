@@ -29,9 +29,13 @@ dependencies = [
 dev = ["pytest", "ruff", "ipykernel"]
 stretch = ["peft", "rouge_score"]   # Phase 7: LoRA summarizer + ROUGE metric
 serve = ["mcp>=2"]                   # Phase 8: expose LogSense as MCP tools
+web = ["fastapi", "uvicorn", "python-multipart", "psutil"]   # test & performance console
 
 [tool.setuptools.packages.find]
 where = ["src"]
+
+[tool.setuptools.package-data]
+logsense = ["web/*"]   # the console page served by logsense.api
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

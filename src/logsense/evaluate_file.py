@@ -14,6 +14,7 @@ from __future__ import annotations
 
 import argparse
 import json
+from collections.abc import Iterable
 from pathlib import Path
 from typing import Any
 
@@ -22,32 +23,45 @@ from logsense.metrics import classification_metrics
 from logsense.train_classifier import predict
 
 
-def load_labeled(path: str | Path, labels: list[str]) -> tuple[list[str], list[str]]:
+def parse_labeled(lines: Iterable[str], labels: list[str]) -> tuple[list[str], list[str]]:
+    """Parse JSONL rows ``{"text", "label"}``; errors name the 1-based line number."""
     texts, gold = [], []
-    # utf-8-sig: also accepts files with a byte-order mark (PowerShell / Notepad add one)
-    with open(path, encoding="utf-8-sig") as f:
-        for n, line in enumerate(f, 1):
-            if not line.strip():
-                continue
-            try:
-                row = json.loads(line)
-                text, label = row["text"], row["label"]
-            except (json.JSONDecodeError, KeyError, TypeError) as err:
-                raise ValueError(f"line {n}: expected {{'text': ..., 'label': ...}}") from err
-            if label not in labels:
-                raise ValueError(f"line {n}: unknown label {label!r}")
-            texts.append(text)
-            gold.append(label)
+    for n, line in enumerate(lines, 1):
+        if not line.strip():
+            continue
+        try:
+            row = json.loads(line)
+            text, label = row["text"], row["label"]
+        except (json.JSONDecodeError, KeyError, TypeError) as err:
+            raise ValueError(f"line {n}: expected {{'text': ..., 'label': ...}}") from err
+        if label not in labels:
+            raise ValueError(f"line {n}: unknown label {label!r}")
+        texts.append(text)
+        gold.append(label)
     return texts, gold
 
 
-def evaluate_file(path: str | Path, cfg: dict[str, Any]) -> dict[str, Any]:
-    texts, gold = load_labeled(path, cfg["labels"])
+def load_labeled(path: str | Path, labels: list[str]) -> tuple[list[str], list[str]]:
+    # utf-8-sig: also accepts files with a byte-order mark (PowerShell / Notepad add one)
+    with open(path, encoding="utf-8-sig") as f:
+        return parse_labeled(f, labels)
+
+
+def score_labeled(
+    texts: list[str], gold: list[str], cfg: dict[str, Any]
+) -> tuple[dict[str, Any], list[str]]:
+    """Classify ``texts`` and score against ``gold``. Returns (metrics, predicted labels)."""
     preds = [p["label"] for p in predict(texts, cfg=cfg)]
     # Score only categories that occur in the file (as truth or prediction): a lab sample with
     # no VPN logs shouldn't drag macro-F1 down with an F1 of 0 for vpn.
     present = [lbl for lbl in cfg["labels"] if lbl in set(gold) | set(preds)]
-    report = {"input": str(path), **classification_metrics(gold, preds, present)}
+    return classification_metrics(gold, preds, present), preds
+
+
+def evaluate_file(path: str | Path, cfg: dict[str, Any]) -> dict[str, Any]:
+    texts, gold = load_labeled(path, cfg["labels"])
+    metrics, _ = score_labeled(texts, gold, cfg)
+    report = {"input": str(path), **metrics}
     out = Path(cfg["paths"]["reports_dir"]) / "real_eval.json"
     out.parent.mkdir(parents=True, exist_ok=True)
     out.write_text(json.dumps(report, indent=2), encoding="utf-8")

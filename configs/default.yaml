@@ -112,6 +112,15 @@ search:
   top_k: 5                  # neighbors returned by find_similar
   batch_size: 64            # sentences embedded per forward pass (no gradients -> can be large)
 
+api:
+  # Test & performance console (python -m logsense.api). 127.0.0.1 = this machine only.
+  host: 127.0.0.1
+  port: 8000
+  max_lines: 200            # lines per /api/analyze request
+  max_burst_lines: 30       # lines per /api/summarize request (LLM prompt length)
+  max_eval_lines: 5000      # rows in an uploaded labeled file
+  benchmark_max_lines: 500  # lines per benchmark run
+
 training:
   max_length: 128
   epochs: 3

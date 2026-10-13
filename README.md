@@ -24,6 +24,7 @@ that Claude Code and other agents can call.
 - [Results (honest version)](#results-honest-version)
 - [Quick start](#quick-start)
 - [Commands](#commands)
+- [Test & performance console](#test--performance-console)
 - [Project layout](#project-layout)
 - [Hugging Face concepts covered](#hugging-face-concepts-covered)
 - [Known limitations](#known-limitations)
@@ -67,7 +68,12 @@ a successful login is `noise` rather than `auth_failure`; a TRAFFIC `deny` is `n
 logs count as `threat`; a GlobalProtect failure is `vpn`; a WLC uplink flap is `link_event` rather
 than `wireless`. The full list is in the docstring of `src/logsense/generate.py`.
 
-**Three ways to use it**
+**Four ways to use it**
+- **Test & performance console**: a FastAPI backend and a web page with five tabs. *Try it*
+  (category, highlighted entities, similar events, per-model timing), *Summarize* (LoRA vs
+  prompt-only side by side, checked against the classifier's counts), *Performance* (latency and
+  throughput benchmark on labeled lines), *Evaluation* (offline metrics plus upload-and-score for
+  your own labeled logs) and *Models*. See [Test & performance console](#test--performance-console).
 - **Gradio demo**: paste many lines and get a category table, highlighted entities and similar past
   events, with a "neighbors per line" slider.
 - **MCP server**: four tools for Claude Code, n8n or any MCP client: `classify_logs`,
@@ -89,7 +95,7 @@ than `wireless`. The full list is in the docstring of `src/logsense/generate.py`
                  └──────────────────────────────┘
  burst of 8–15 ──► Qwen2.5-0.5B-Instruct (chat template, optional LoRA) ──► 3-line incident note
 
- Front ends:  Gradio app (app.py)  ·  MCP server (serve.py)  ·  CLI / evaluate_file.py
+ Front ends:  Console (api.py + web/)  ·  Gradio app (app.py)  ·  MCP server (serve.py)  ·  CLI
 ```
 
 The models, label lists, hyperparameters and paths all come from `configs/default.yaml`, and the
@@ -121,7 +127,7 @@ random seed is fixed (`seed: 42`) so runs are reproducible.
 - **Two code-review passes**, which led to 18 fixes. Among them: macro-F1 over all labels, a check
   on label order, validation of the held-out lists, strict word-boundary scoring for summaries, and
   report saving that survives a crashed run.
-- **48 pytest tests**, one test module per source module, with ruff for lint and format.
+- **57 pytest tests**, one test module per source module, with ruff for lint and format.
 - **CPU-friendly.** Batched embedding and dynamic padding keep inference light, gradient
   checkpointing and one long burst per step keep LoRA training within 16 GB of RAM, and the CPU
   training times are recorded in `reports/`.
@@ -213,8 +219,8 @@ Full numbers are in `reports/*.json`. The model cards are in `docs/model_cards/`
 ```bash
 python -m venv .venv
 source .venv/bin/activate          # Windows: .venv\Scripts\activate
-pip install -e ".[dev]"            # add ,stretch for Phase 7 and ,serve for the MCP server
-pytest -q                          # 48 tests
+pip install -e ".[dev]"            # add ,stretch (Phase 7), ,serve (MCP) and ,web (console)
+pytest -q                          # 57 tests
 ```
 Tested with Python 3.11+, transformers 5.x, datasets 5.x, torch 2.x (CPU), sentence-transformers,
 faiss-cpu, peft, gradio 6 and mcp.
@@ -227,6 +233,7 @@ python -m logsense.train_classifier         # Phase 3 (~25 min CPU)
 python -m logsense.train_ner                # Phase 4 (~35 min CPU)
 python -m logsense.search                   # Phase 5: build index + evaluate
 python -m logsense.search --query "<log line>"
+python -m logsense.api                      # Test & performance console at http://127.0.0.1:8000
 python -m logsense.app                      # Phase 6: Gradio demo at http://127.0.0.1:7860
 python -m logsense.summarize                # Phase 7: prompting vs LoRA (needs .[stretch], ~1.5 h)
 python -m logsense.serve                    # Phase 8: MCP server over stdio (needs .[serve])
@@ -248,6 +255,38 @@ labels present in the file.
 
 ---
 
+## Test & performance console
+```bash
+python -m logsense.api            # open http://127.0.0.1:8000 · API docs at /api/docs
+```
+The backend loads each model on first use and keeps it in memory. The summarizer adds about 2 GB,
+so only the first summary is slow. It listens on 127.0.0.1 only.
+
+| Endpoint | What it does |
+|---|---|
+| `POST /api/analyze` | Lines → category + confidence, entities, similar events, ms per model |
+| `GET /api/samples` | Random labeled lines from `test` / `test_unseen` |
+| `POST /api/benchmark` | Lines/s, ms/line and batch p50/p95/max per model, plus accuracy on the labeled sample |
+| `POST /api/evaluate` | Upload a labeled `.jsonl`; returns accuracy, macro-F1, per-class F1, confusion matrix, mistakes |
+| `GET /api/sample-burst` | A synthetic burst with its reference note and facts |
+| `POST /api/summarize` | Burst → note (`mode`: `lora` / `prompt`), the classifier's counts, and checks if facts are given |
+| `GET /api/metrics` · `GET /api/models` | Saved reports · model paths, sizes, load times, process memory |
+
+Measured on this 16 GB CPU laptop (100 `test_unseen` lines, batch 16, models already loaded):
+
+| Model | Lines/s | ms/line | Note |
+|---|---|---|---|
+| Classifier (DistilBERT) | 27.8 | 36 | accuracy 0.71 on the sample, matching the offline 0.710 |
+| NER (DistilBERT) | 22.7 | 44 | the pipeline runs one line at a time |
+| Search (MiniLM + FAISS) | 102.5 | 10 | the embedding pass dominates; the FAISS lookup is near-instant |
+| Summarizer (Qwen 0.5B + LoRA) | – | ~5–10 s / burst | process memory goes from ~1.2 GB to ~3 GB |
+
+The summarizer tab shows its known weakness live. On a burst of 7 interface flaps plus 3 noise
+lines, the classifier counted 7 `link_event` and 3 `noise` correctly, while the LoRA note claimed
+"10 SSH connection failures".
+
+---
+
 ## Project layout
 ```
 configs/default.yaml   labels, entity types, model names, hyperparameters, paths
@@ -259,11 +298,13 @@ src/logsense/
   train_classifier.py  Phase 3: DistilBERT sequence classification
   train_ner.py         Phase 4: DistilBERT token classification (BIO)
   search.py            Phase 5: MiniLM embeddings + FAISS
+  api.py               FastAPI backend of the test & performance console
+  web/                 console page (HTML/CSS/JS, no build step, works offline)
   app.py               Phase 6: Gradio Blocks demo
   summarize.py         Phase 7: Qwen2.5 prompting vs LoRA
   serve.py             Phase 8: MCP tool server
   evaluate_file.py     Phase 8: score models on a labeled .jsonl
-tests/                 48 pytest tests, one module per source module
+tests/                 57 pytest tests, one module per source module
 docs/PHASES.md         the build plan
 docs/model_cards/      classifier.md, ner.md
 space/                 ready-to-upload Hugging Face Space (app, requirements, checklist)
