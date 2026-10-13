@@ -120,6 +120,29 @@ api:
   max_burst_lines: 30       # lines per /api/summarize request (LLM prompt length)
   max_eval_lines: 5000      # rows in an uploaded labeled file
   benchmark_max_lines: 500  # lines per benchmark run
+  feed:                     # Live view: simulated syslog stream
+    incident_rate: 0.03     # chance per line that a new incident burst starts
+    burst_min: 6
+    burst_max: 14
+    noise_share: 0.85       # outside bursts, routine noise vs stray single events
+    mean_gap_s: 3.0         # average simulated seconds between routine lines
+  severity:                 # how the Live view ranks categories
+    threat: critical
+    auth_failure: high
+    vpn: medium
+    link_event: medium
+    config_change: low
+    wireless: low
+    noise: info
+  alerts:                   # raise an alert when a category repeats within a window
+    window_s: 300           # simulated seconds
+    min_events:
+      threat: 3
+      auth_failure: 5
+      vpn: 4
+      link_event: 4
+      config_change: 6
+      wireless: 6
 
 training:
   max_length: 128

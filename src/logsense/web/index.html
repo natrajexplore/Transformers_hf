@@ -4,60 +4,153 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>LogSense Console</title>
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%232563eb'/%3E%3Cpath d='M7 9h18M7 16h12M7 23h15' stroke='white' stroke-width='3' stroke-linecap='round'/%3E%3C/svg%3E">
   <link rel="stylesheet" href="style.css">
 </head>
 <body>
   <header>
-    <div class="brand">LogSense <span>console</span></div>
-    <nav id="tabs">
-      <button data-tab="try" class="active">Try it</button>
-      <button data-tab="summarize">Summarize</button>
-      <button data-tab="performance">Performance</button>
-      <button data-tab="evaluation">Evaluation</button>
-      <button data-tab="models">Models</button>
+    <div class="brand"><span class="logo"></span>LogSense <span>console</span></div>
+    <nav id="tabs" role="tablist">
+      <button data-tab="live" class="active" title="Alt+1">Live</button>
+      <button data-tab="try" title="Alt+2">Try it</button>
+      <button data-tab="summarize" title="Alt+3">Summarize</button>
+      <button data-tab="label" title="Alt+4">Label</button>
+      <button data-tab="performance" title="Alt+5">Performance</button>
+      <button data-tab="evaluation" title="Alt+6">Evaluation</button>
+      <button data-tab="models" title="Alt+7">Models</button>
     </nav>
+    <div class="header-right">
+      <span id="health" class="health" title="Backend status"><i></i><span>connecting…</span></span>
+      <button id="help-btn" class="icon" title="Keyboard shortcuts (?)">?</button>
+      <button id="theme-btn" class="icon" title="Theme: auto / light / dark">◐</button>
+    </div>
   </header>
 
   <main>
-    <!-- Try it -->
-    <section id="try" class="panel active">
+    <!-- ============================================================ Live -->
+    <section id="live" class="panel active">
+      <div class="toolbar">
+        <button id="live-toggle" class="primary">▶ Start stream</button>
+        <label>speed <select id="live-speed">
+          <option value="0.5">0.5×</option><option value="1" selected>1×</option>
+          <option value="2">2×</option><option value="4">4×</option></select></label>
+        <label>min severity <select id="live-minsev">
+          <option value="info">info</option><option value="low">low</option><option value="medium">medium</option>
+          <option value="high">high</option><option value="critical">critical</option></select></label>
+        <input id="live-filter" type="search" placeholder="Filter text, IP, user…" aria-label="Filter events">
+        <label title="Show the simulator's true category and flag model mistakes"><input id="live-truth" type="checkbox"> ground truth</label>
+        <span class="spacer"></span>
+        <button id="live-export" title="Download visible events as CSV">⇩ CSV</button>
+        <button id="live-clear">Clear</button>
+      </div>
+      <p class="hint" id="live-hint">A simulated syslog feed from Cisco IOS, ISE, C9800 and PAN-OS devices: mostly routine
+        traffic, with incident bursts (a flapping switch, a brute-force attempt, a scanner). Every line is classified and
+        its entities extracted as it arrives. Click any event for details.</p>
+      <div class="live-grid">
+        <div class="card feed-card">
+          <div class="feed-head"><b>Event stream</b><span id="live-count" class="muted"></span></div>
+          <div id="live-feed" class="feed" role="log" aria-live="off"></div>
+        </div>
+        <aside class="dash">
+          <div class="card"><div class="card-title">Active alerts <span id="alert-count" class="pill">0</span></div>
+            <div id="alerts"><p class="muted small">No alerts yet.</p></div></div>
+          <div class="card"><div class="card-title">Events / min <span id="rate-now" class="muted small"></span></div>
+            <svg id="spark" viewBox="0 0 300 60" preserveAspectRatio="none"></svg></div>
+          <div class="card"><div class="card-title">By category</div><div id="by-category"></div></div>
+          <div class="card"><div class="card-title">By vendor</div><div id="by-vendor"></div></div>
+          <div class="card"><div class="card-title">Top talkers</div><div id="talkers" class="talkers"></div></div>
+        </aside>
+      </div>
+    </section>
+
+    <!-- ============================================================ Try it -->
+    <section id="try" class="panel">
       <p class="hint">Paste syslog lines (one per line). Each line is classified, its entities are
-        extracted, and the most similar past events are retrieved.</p>
+        extracted, and the most similar past events are retrieved. <kbd>Ctrl</kbd>+<kbd>Enter</kbd> runs.</p>
       <textarea id="try-input" rows="7" placeholder="Paste Cisco IOS / ISE / C9800 / PAN-OS syslog lines here"></textarea>
       <div class="controls">
         <button id="try-run" class="primary">Analyze</button>
-        <button id="try-samples">Load samples</button>
+        <button id="try-samples">Load labeled samples</button>
         <label>split <select id="try-split"><option>test_unseen</option><option>test</option></select></label>
         <label>similar <input id="try-k" type="number" min="1" max="20" value="3"></label>
         <span id="try-timing" class="chips"></span>
+        <span class="spacer"></span>
+        <button id="try-copy" title="Copy results as JSON" disabled>Copy JSON</button>
       </div>
-      <div id="try-error" class="error"></div>
       <div id="try-results"></div>
     </section>
 
-    <!-- Summarize -->
+    <!-- ============================================================ Summarize -->
     <section id="summarize" class="panel">
-      <p class="hint">Summarize a burst of logs into a 3-line incident note with Qwen2.5-0.5B.
-        <b>LoRA</b> learned the note format; <b>prompt-only</b> is the untuned model. The first run
-        loads the LLM (~30&nbsp;s); each summary takes ~10&nbsp;s on CPU. Counts from the LLM are not
-        reliable &mdash; compare them with the classifier counts.</p>
-      <textarea id="sum-input" rows="9" placeholder="Paste 8-30 related log lines, or generate a sample burst"></textarea>
+      <p class="hint">Turn a burst of logs into a 3-line incident note with Qwen2.5-0.5B. <b>LoRA</b> learned the
+        note format; <b>prompt-only</b> is the untuned model. The first run loads the LLM; each note takes
+        ~5–15&nbsp;s on CPU. <b>The LLM's counts are not reliable</b>; compare them with the classifier counts.</p>
+      <textarea id="sum-input" rows="9" placeholder="Paste 8–30 related log lines, or generate a sample burst"></textarea>
       <div class="controls">
         <button id="sum-sample">Generate sample burst</button>
         <button id="sum-lora" class="primary">Summarize (LoRA)</button>
-        <button id="sum-prompt">Summarize (prompt-only)</button>
+        <button id="sum-prompt">Prompt-only</button>
         <button id="sum-both">Compare both</button>
         <span id="sum-status" class="muted"></span>
       </div>
-      <div id="sum-error" class="error"></div>
       <div id="sum-reference"></div>
       <div id="sum-results" class="grid2"></div>
     </section>
 
-    <!-- Performance -->
+    <!-- ============================================================ Label -->
+    <section id="label" class="panel">
+      <div class="steps">
+        <div class="step" data-step="1"><b>1</b> Paste raw logs</div>
+        <div class="step" data-step="2"><b>2</b> Anonymize</div>
+        <div class="step" data-step="3"><b>3</b> Label each line</div>
+        <div class="step" data-step="4"><b>4</b> Download or evaluate</div>
+      </div>
+      <div class="grid2 label-top">
+        <div>
+          <textarea id="lab-input" rows="8" placeholder="Paste real syslog lines from your lab (one per line). Take a random time window, e.g. one hour, not hand-picked lines."></textarea>
+          <div class="controls">
+            <button id="lab-load" class="primary">Anonymize &amp; load</button>
+            <label title="Only if the lines are already anonymized"><input id="lab-skip-anon" type="checkbox"> already anonymized</label>
+            <button id="lab-demo" title="Load 20 unlabeled synthetic lines to try the workflow">Use demo lines</button>
+            <span class="spacer"></span>
+            <button id="lab-reset">Reset</button>
+          </div>
+        </div>
+        <div class="card help">
+          <b>How labeling works</b>
+          <ul>
+            <li>IPs, users, hostnames, MACs, emails and serials are replaced consistently (same real value → same
+              fake value). It is pattern-based: <b>read the lines before sharing them</b>.</li>
+            <li>Pick the category <b>you</b> know is correct. Model predictions stay hidden until you evaluate,
+              so they can't bias your labels.</li>
+            <li>Rules: successful logins, routine CoA/accounting and TRAFFIC denies are <code>noise</code>;
+              GlobalProtect failures are <code>vpn</code>; a WLC uplink flap is <code>link_event</code>.</li>
+            <li>Lines that fit no category (posture, RADIUS server down, ISE alarms): press <kbd>X</kbd> to
+              exclude them; the excluded count is reported.</li>
+            <li>Keys: <kbd>1</kbd>–<kbd>7</kbd> label · <kbd>X</kbd> exclude · <kbd>↑</kbd><kbd>↓</kbd> or
+              <kbd>J</kbd><kbd>K</kbd> move · <kbd>Backspace</kbd> clear. Your draft is kept in this browser.</li>
+          </ul>
+        </div>
+      </div>
+      <div id="lab-anon-note"></div>
+      <div id="lab-work" hidden>
+        <div class="toolbar">
+          <div class="progress"><span id="lab-progress-bar"></span></div>
+          <span id="lab-progress" class="muted"></span>
+          <span id="lab-legend" class="chips"></span>
+          <span class="spacer"></span>
+          <button id="lab-download" disabled>⇩ Download .jsonl</button>
+          <button id="lab-evaluate" class="primary" disabled>Evaluate now</button>
+        </div>
+        <div id="lab-table" class="lab-table" tabindex="0"></div>
+        <div id="lab-results"></div>
+      </div>
+    </section>
+
+    <!-- ============================================================ Performance -->
     <section id="performance" class="panel">
-      <p class="hint">Runs labeled lines from a dataset split through each model on this machine and
-        measures speed. The first batch is an untimed warm-up (it loads the weights).</p>
+      <p class="hint">Runs labeled lines from a dataset split through each model on this machine and measures
+        speed. The first batch is an untimed warm-up (it loads the weights). Runs stack up for comparison.</p>
       <div class="controls">
         <label>split <select id="bench-split"><option>test_unseen</option><option>test</option></select></label>
         <label>lines <input id="bench-n" type="number" min="1" max="500" value="100"></label>
@@ -68,37 +161,63 @@
         <button id="bench-run" class="primary">Run benchmark</button>
         <span id="bench-status" class="muted"></span>
       </div>
-      <div id="bench-error" class="error"></div>
       <div id="bench-results"></div>
     </section>
 
-    <!-- Evaluation -->
+    <!-- ============================================================ Evaluation -->
     <section id="evaluation" class="panel">
       <div class="card">
-        <h3>Score your own labeled logs</h3>
-        <p class="hint">Upload a <code>.jsonl</code> file with one <code>{"text": ..., "label": ...}</code>
-          per line. Use anonymized logs only. Only categories present in the file are scored.</p>
+        <div class="card-title">Score a labeled file</div>
+        <p class="hint">Upload a <code>.jsonl</code> with one <code>{"text": ..., "label": ...}</code> per line,
+          e.g. one made in the <a href="#label" data-goto="label">Label</a> tab. Only categories present in the file are scored.</p>
         <div class="controls">
           <input id="eval-file" type="file" accept=".jsonl,.json,.txt">
           <button id="eval-run" class="primary">Evaluate</button>
           <span id="eval-status" class="muted"></span>
         </div>
-        <div id="eval-error" class="error"></div>
         <div id="eval-results"></div>
       </div>
-      <h2>Offline results <small>(from reports/*.json)</small></h2>
-      <p class="hint"><code>test</code> = new lines from templates seen in training (measures
-        memorization). <code>test_unseen</code> = whole message templates held out (measures
-        generalization &mdash; the number that matters).</p>
-      <div id="metrics"></div>
+      <h2>Offline results <small>from reports/*.json</small></h2>
+      <p class="hint"><code>test</code> = new lines from templates seen in training (measures memorization).
+        <code>test_unseen</code> = whole message templates held out (measures generalization, the number that matters).</p>
+      <div id="metrics"><div class="skeleton"></div><div class="skeleton"></div></div>
     </section>
 
-    <!-- Models -->
+    <!-- ============================================================ Models -->
     <section id="models" class="panel">
-      <div id="models-body"></div>
+      <div id="models-body"><div class="skeleton"></div></div>
     </section>
   </main>
 
+  <!-- Incident drill-down drawer -->
+  <div id="drawer-backdrop" hidden></div>
+  <aside id="drawer" aria-hidden="true" aria-label="Event details">
+    <div class="drawer-head">
+      <div id="drawer-title"></div>
+      <button id="drawer-close" class="icon" title="Close (Esc)">✕</button>
+    </div>
+    <div id="drawer-body"></div>
+  </aside>
+
+  <!-- Shortcuts -->
+  <dialog id="help-dialog">
+    <h3>Keyboard shortcuts</h3>
+    <table>
+      <tr><td><kbd>Alt</kbd>+<kbd>1</kbd>…<kbd>7</kbd></td><td>switch tab</td></tr>
+      <tr><td><kbd>Ctrl</kbd>+<kbd>Enter</kbd></td><td>run the tab's main action</td></tr>
+      <tr><td><kbd>Space</kbd></td><td>start / pause the live stream (Live tab)</td></tr>
+      <tr><td><kbd>/</kbd></td><td>focus the live filter</td></tr>
+      <tr><td><kbd>1</kbd>–<kbd>7</kbd>, <kbd>X</kbd>, <kbd>J</kbd>/<kbd>K</kbd></td><td>label, exclude, move (Label tab)</td></tr>
+      <tr><td><kbd>Esc</kbd></td><td>close panel / dialog</td></tr>
+      <tr><td><kbd>?</kbd></td><td>this help</td></tr>
+    </table>
+    <form method="dialog"><button class="primary">Close</button></form>
+  </dialog>
+
+  <div id="toasts" aria-live="polite"></div>
+
   <script src="app.js"></script>
+  <script src="live.js"></script>
+  <script src="label.js"></script>
 </body>
 </html>

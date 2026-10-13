@@ -125,3 +125,23 @@ def test_page_is_served(client):
     r = client.get("/")
     assert r.status_code == 200 and "LogSense" in r.text
     assert client.get("/app.js").status_code == 200
+
+
+def test_config_feed_and_anonymize(client, cfg):
+    c = client.get("/api/config").json()
+    assert c["labels"] == cfg["labels"] and set(c["severity"]) == set(cfg["labels"])
+    f = client.post("/api/feed", json={"n": 5, "t": 1_760_000_000, "seed": 1}).json()
+    assert len(f["events"]) == 5 and f["t"] > 1_760_000_000
+    a = client.post(
+        "/api/anonymize", json={"lines": ["[user: jsmith] from 172.20.4.9", " "]}
+    ).json()
+    assert a["lines"] == ["[user: user01] from 10.0.0.1"]
+
+
+def test_analyze_k0_skips_search(client, monkeypatch):
+    def boom(*a, **k):
+        raise AssertionError("search must not run")
+
+    monkeypatch.setattr(api, "find_similar_batch", boom)
+    r = client.post("/api/analyze", json={"lines": LINES, "k": 0}).json()
+    assert r["results"][0]["similar"] == [] and r["timing_ms"]["search"] == 0.0

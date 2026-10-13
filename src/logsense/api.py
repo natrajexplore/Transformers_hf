@@ -35,9 +35,11 @@ from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
 
 from logsense import evaluate_file as ef
+from logsense.anonymize import anonymize_lines
 from logsense.config import load_config
 from logsense.metrics import classification_metrics
 from logsense.search import find_similar_batch, index_dir
+from logsense.simulate import feed_chunk
 from logsense.summarize import adapter_dir, make_bursts, reference_summary, score
 from logsense.train_classifier import model_dir as classifier_dir
 from logsense.train_classifier import predict
@@ -51,7 +53,18 @@ FAST_MODELS = ("classifier", "ner", "search")
 
 class AnalyzeIn(BaseModel):
     lines: list[str] = Field(min_length=1)
-    k: int = Field(5, ge=1, le=20)
+    k: int = Field(5, ge=0, le=20)  # 0 = skip similar-event search (Live view)
+
+
+class LinesIn(BaseModel):
+    lines: list[str] = Field(min_length=1)
+
+
+class FeedIn(BaseModel):
+    n: int = Field(8, ge=1, le=50)
+    t: float | None = None  # simulated clock from the previous call; None = now
+    seed: int = 0
+    incident: dict[str, Any] | None = None  # open burst returned by the previous call
 
 
 class BenchmarkIn(BaseModel):
@@ -161,7 +174,9 @@ def create_app(cfg: dict[str, Any] | None = None) -> FastAPI:
         lines = clean(body.lines, limits["max_lines"])
         preds, t_cls = timed("classifier", lambda: predict(lines, cfg=cfg))
         ents, t_ner = timed("ner", lambda: [extract_entities(ln, cfg=cfg) for ln in lines])
-        sims, t_sim = timed("search", lambda: find_similar_batch(lines, k=body.k, cfg=cfg))
+        sims, t_sim = [[] for _ in lines], 0.0
+        if body.k:
+            sims, t_sim = timed("search", lambda: find_similar_batch(lines, k=body.k, cfg=cfg))
         return {
             "results": [
                 {
@@ -179,6 +194,28 @@ def create_app(cfg: dict[str, Any] | None = None) -> FastAPI:
                 "search": round(t_sim * 1000, 1),
             },
         }
+
+    @app.get("/api/config")
+    def config() -> dict[str, Any]:
+        """What the page needs to render: labels, entity types, severity, alert rules."""
+        return {
+            "labels": cfg["labels"],
+            "entity_types": cfg["entity_types"],
+            "severity": limits["severity"],
+            "alerts": limits["alerts"],
+            "limits": {k: limits[k] for k in ("max_lines", "max_burst_lines", "max_eval_lines")},
+        }
+
+    @app.post("/api/anonymize")
+    def anonymize(body: LinesIn) -> dict[str, Any]:
+        lines = [ln.rstrip() for ln in body.lines if ln.strip()]
+        if len(lines) > limits["max_eval_lines"]:
+            raise HTTPException(422, f"at most {limits['max_eval_lines']} lines")
+        return anonymize_lines(lines)
+
+    @app.post("/api/feed")
+    def feed(body: FeedIn) -> dict[str, Any]:
+        return feed_chunk(cfg, body.n, body.t or time.time(), body.seed, body.incident)
 
     @app.get("/api/samples")
     def samples(

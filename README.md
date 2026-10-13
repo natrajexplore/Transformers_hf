@@ -69,11 +69,10 @@ logs count as `threat`; a GlobalProtect failure is `vpn`; a WLC uplink flap is `
 than `wireless`. The full list is in the docstring of `src/logsense/generate.py`.
 
 **Four ways to use it**
-- **Test & performance console**: a FastAPI backend and a web page with five tabs. *Try it*
-  (category, highlighted entities, similar events, per-model timing), *Summarize* (LoRA vs
-  prompt-only side by side, checked against the classifier's counts), *Performance* (latency and
-  throughput benchmark on labeled lines), *Evaluation* (offline metrics plus upload-and-score for
-  your own labeled logs) and *Models*. See [Test & performance console](#test--performance-console).
+- **Test & performance console**: a FastAPI backend and a web page that feels like a small SOC
+  tool. It has a live triage stream with a dashboard and alerts, incident drill-down with an LLM
+  note, a labeling workbench that anonymizes your logs, a benchmark and an evaluation view. See
+  [Test & performance console](#test--performance-console).
 - **Gradio demo**: paste many lines and get a category table, highlighted entities and similar past
   events, with a "neighbors per line" slider.
 - **MCP server**: four tools for Claude Code, n8n or any MCP client: `classify_logs`,
@@ -127,7 +126,7 @@ random seed is fixed (`seed: 42`) so runs are reproducible.
 - **Two code-review passes**, which led to 18 fixes. Among them: macro-F1 over all labels, a check
   on label order, validation of the held-out lists, strict word-boundary scoring for summaries, and
   report saving that survives a crashed run.
-- **57 pytest tests**, one test module per source module, with ruff for lint and format.
+- **66 pytest tests**, one test module per source module, with ruff for lint and format.
 - **CPU-friendly.** Batched embedding and dynamic padding keep inference light, gradient
   checkpointing and one long burst per step keep LoRA training within 16 GB of RAM, and the CPU
   training times are recorded in `reports/`.
@@ -220,7 +219,7 @@ Full numbers are in `reports/*.json`. The model cards are in `docs/model_cards/`
 python -m venv .venv
 source .venv/bin/activate          # Windows: .venv\Scripts\activate
 pip install -e ".[dev]"            # add ,stretch (Phase 7), ,serve (MCP) and ,web (console)
-pytest -q                          # 57 tests
+pytest -q                          # 66 tests
 ```
 Tested with Python 3.11+, transformers 5.x, datasets 5.x, torch 2.x (CPU), sentence-transformers,
 faiss-cpu, peft, gradio 6 and mcp.
@@ -249,8 +248,9 @@ claude mcp add logsense -- .venv/Scripts/python -m logsense.serve
 Then ask, for example, *"triage this log line: …"*. Claude calls the `triage` tool and gets back the
 category, entities and similar events.
 
-**Evaluate on your own logs**: create a `.jsonl` file with one `{"text": ..., "label": ...}` per line,
-using anonymized lines only. `evaluate_file` reports accuracy, macro-F1 and per-class F1 for the
+**Evaluate on your own logs**: the easiest way is the console's **Label** tab, which anonymizes,
+labels and exports the file for you. You can also write a `.jsonl` file yourself, with one
+`{"text": ..., "label": ...}` per line, using anonymized lines only. `evaluate_file` reports accuracy, macro-F1 and per-class F1 for the
 labels present in the file.
 
 ---
@@ -262,6 +262,20 @@ python -m logsense.api            # open http://127.0.0.1:8000 · API docs at /a
 The backend loads each model on first use and keeps it in memory. The summarizer adds about 2 GB,
 so only the first summary is slow. It listens on 127.0.0.1 only.
 
+| Tab | What you can do |
+|---|---|
+| **Live** | Start a simulated syslog stream: mostly routine traffic, with incident bursts pinned to one device (a flapping switch, a brute-force run, a scanner). Each line is classified and its entities extracted as it arrives, with severity colors, filters, a ground-truth toggle that flags model mistakes, and CSV export. The dashboard shows counts by category and vendor, events/min, top talkers, and **alerts** when a category repeats within a window (rules in `configs/default.yaml` → `api.alerts`). |
+| **Incident drill-down** | Click any event or alert. A side panel shows the highlighted line, entities, the 5 most similar past events, the related events in the window, and **Generate incident note**, which runs the LoRA summarizer and shows the classifier's counts next to it. |
+| **Try it** | Paste lines or load labeled samples; see category, confidence, entities and per-model ms. Click a result to drill down. |
+| **Summarize** | Generate a sample burst with its reference note; compare LoRA and prompt-only notes with format, count and category checks. |
+| **Label** | Build the labeled `.jsonl` for real-log evaluation: paste raw logs, then **anonymize** them (IPs → RFC 5737 / 10.x, users → `userNN`, hostnames, MACs, emails and PAN-OS serials, replaced consistently). Label each line with keys `1`–`7`, exclude lines that fit no category with `X`, then **download** the file or **evaluate** directly. Model predictions stay hidden until you evaluate, so they can't bias your labels. |
+| **Performance** | Latency and throughput per model on labeled lines, with accuracy; runs stack up. |
+| **Evaluation** | All offline metrics (tables, per-class bars, confusion heatmap), plus upload-and-score for a labeled file. |
+| **Models** | Paths, sizes, load times, process memory, categories and severities. |
+
+Extras: a light/dark/auto theme, keyboard shortcuts (press `?`), toasts, copy buttons and a
+backend status light. The page needs no internet: plain HTML/CSS/JS, no CDN.
+
 | Endpoint | What it does |
 |---|---|
 | `POST /api/analyze` | Lines → category + confidence, entities, similar events, ms per model |
@@ -270,6 +284,9 @@ so only the first summary is slow. It listens on 127.0.0.1 only.
 | `POST /api/evaluate` | Upload a labeled `.jsonl`; returns accuracy, macro-F1, per-class F1, confusion matrix, mistakes |
 | `GET /api/sample-burst` | A synthetic burst with its reference note and facts |
 | `POST /api/summarize` | Burst → note (`mode`: `lora` / `prompt`), the classifier's counts, and checks if facts are given |
+| `POST /api/feed` | Next simulated syslog events (stateless: the client passes back the clock and any open burst) |
+| `POST /api/anonymize` | Lines → anonymized lines, plus counts of what was replaced |
+| `GET /api/config` | Labels, entity types, severities and alert rules for the page |
 | `GET /api/metrics` · `GET /api/models` | Saved reports · model paths, sizes, load times, process memory |
 
 Measured on this 16 GB CPU laptop (100 `test_unseen` lines, batch 16, models already loaded):
@@ -299,12 +316,14 @@ src/logsense/
   train_ner.py         Phase 4: DistilBERT token classification (BIO)
   search.py            Phase 5: MiniLM embeddings + FAISS
   api.py               FastAPI backend of the test & performance console
-  web/                 console page (HTML/CSS/JS, no build step, works offline)
+  anonymize.py         consistent, pattern-based anonymizer for real syslog lines
+  simulate.py          live syslog feed simulator (noise + incident bursts)
+  web/                 console page: app.js, live.js, label.js (no build step, works offline)
   app.py               Phase 6: Gradio Blocks demo
   summarize.py         Phase 7: Qwen2.5 prompting vs LoRA
   serve.py             Phase 8: MCP tool server
   evaluate_file.py     Phase 8: score models on a labeled .jsonl
-tests/                 57 pytest tests, one module per source module
+tests/                 66 pytest tests, one module per source module
 docs/PHASES.md         the build plan
 docs/model_cards/      classifier.md, ner.md
 space/                 ready-to-upload Hugging Face Space (app, requirements, checklist)
